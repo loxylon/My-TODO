@@ -1,0 +1,11 @@
+{
+  "name": "my-todo-checks",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "test": "node --test tests/model.test.cjs",
+    "test:ui": "playwright test",
+    "preview": "python3 -m http.server 4173 --directory app/src/main/assets --bind 127.0.0.1"
+  },
+  "devDependencies": { "@playwright/test": "1.61.1" }
+}

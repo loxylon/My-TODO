@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#15191e"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>My TODO</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<div class="shell">
+  <header><button id="menu" class="icon" aria-label="Открыть меню"><span class="menu-lines"></span></button><span class="wordmark">my<span>todo</span><i></i></span><button id="rankButton" class="rank-pill" aria-label="Опыт и ранги"><span>✦</span> <b id="level">1</b></button></header>
+  <main>
+    <div class="eyebrow" id="dateLabel"></div>
+    <div class="title-row"><h1 id="screenTitle">Сегодня<span>.</span></h1><button id="screenActions" class="icon hidden" aria-label="Действия с проектом">•••</button><span id="progressLabel" class="subtle"></span></div>
+    <p class="subtitle" id="subtitle">Немного фокуса. Много маленьких шагов.</p>
+    <div class="progress-track"><div id="progressFill"></div></div>
+    <section aria-label="Задачи"><div id="tasks"></div><button id="addTask" class="add-task"><span>＋</span> Добавить дело <kbd>↵</kbd></button><button id="showDone" class="text-button hidden"></button><div id="completed" class="hidden"></div></section>
+    <section id="poolSection" class="pool-section"><div class="section-heading"><div><span class="eyebrow">В СВОЁМ РИТМЕ</span><h2>Регулярные дела <span id="poolCount"></span></h2></div><button id="addPool" class="icon small" aria-label="Добавить регулярное дело">＋</button></div><p class="pool-note" id="rotationNote"></p><div id="pool"></div><button id="pickNow" class="text-button">↝ Выбрать одно сейчас</button></section>
+    <footer><span class="footer-star">✦</span><span id="footerRank">Каждый шаг имеет значение.</span></footer>
+  </main>
+  <button id="settingsShortcut" class="floating-settings" aria-label="Настройки">⚙︎</button>
+</div>
+<dialog id="dialog"><div id="dialogContent"></div></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+<script src="model.js"></script><script src="app.js"></script>
+</body></html>
