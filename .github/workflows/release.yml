@@ -17,6 +17,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
       - name: Restore original signing key
         env:
@@ -25,7 +27,6 @@ jobs:
           test -n "$KEYSTORE_BASE64" || { echo 'Add the original signing key to repository Actions secrets; see README.'; exit 1; }
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
           chmod 600 "$RUNNER_TEMP/release.jks"
-      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - name: Test and sign
         env:
           TODO_KEYSTORE: ${{ runner.temp }}/release.jks
