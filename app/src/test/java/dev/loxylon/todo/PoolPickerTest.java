@@ -3,6 +3,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 import java.util.*;
 public class PoolPickerTest {
+    @Test public void zeroCooldownHasNoTimeRestrictionAfterAClockChange() { assertEquals(0,PoolPicker.choose(List.of(new PoolPicker.Candidate(true,false,2000,0)),1000,new Random(1))); }
     @Test public void ignoresExcludedPendingAndCoolingItems() {
         List<PoolPicker.Candidate> c=Arrays.asList(new PoolPicker.Candidate(false,false,0,0),new PoolPicker.Candidate(true,true,0,0),new PoolPicker.Candidate(true,false,900,200),new PoolPicker.Candidate(true,false,0,200));
         assertEquals(3,PoolPicker.choose(c,1000,new Random(1)));

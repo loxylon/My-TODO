@@ -70,11 +70,24 @@ public class MainActivity extends Activity {
     private final class Bridge {
         @JavascriptInterface public String read() { try { return Store.reconcile(MainActivity.this).toString(); } catch(Exception e){ return "{\"error\":\"Не удалось прочитать данные\"}"; } }
         @JavascriptInterface public String save(String json) {
+            return saveState(json,false);
+        }
+        @JavascriptInterface public String restore(String json) {
+            return saveState(json,true);
+        }
+        @JavascriptInterface public String backup(String kind) {
+            if(!"beforeMigration".equals(kind)&&!"beforeImport".equals(kind))return "";
+            return getSharedPreferences("todo",0).getString(kind,"");
+        }
+        private String saveState(String json,boolean restoring) {
             synchronized(Store.class) {
                 try { JSONObject s=new JSONObject(json);
                     if(s.optLong("revision")!=Store.read(MainActivity.this).optLong("revision")) return "{\"error\":\"Список обновился в фоне. Повторите изменение.\",\"conflict\":true}";
-                    StatePolicy.moveOverdue(s,System.currentTimeMillis(),java.time.ZoneId.systemDefault());
-                    Store.write(MainActivity.this,s); Alarms.sync(MainActivity.this,s); return s.toString(); }
+                    if(restoring)StatePolicy.prepareImport(s,System.currentTimeMillis(),java.time.ZoneId.systemDefault());
+                    else StatePolicy.moveOverdue(s,System.currentTimeMillis(),java.time.ZoneId.systemDefault());
+                    Store.write(MainActivity.this,s,restoring?"beforeImport":null);
+                    try{Alarms.sync(MainActivity.this,s);}catch(Exception alarmError){android.util.Log.e("MyTODO","Data saved; alarm sync will retry on resume",alarmError);}
+                    return s.toString(); }
                 catch(Exception e) { android.util.Log.e("MyTODO","Save failed",e); return "{\"error\":\"Не удалось сохранить данные или напоминания\"}"; }
             }
         }

@@ -1,0 +1,103 @@
+{
+  "schema": 1,
+  "tasks": [
+    {
+      "id": "old-today",
+      "title": "Незавершённое старое дело",
+      "date": "2026-10-20",
+      "project": "",
+      "done": false,
+      "rewarded": false,
+      "source": "",
+      "reminder": 0
+    },
+    {
+      "id": "project-item",
+      "title": "Написать главу",
+      "date": "2026-10-20",
+      "project": "book",
+      "done": false,
+      "rewarded": false,
+      "source": "",
+      "reminder": 0
+    },
+    {
+      "id": "done-item",
+      "title": "Уже готово",
+      "date": "2026-10-20",
+      "project": "",
+      "done": true,
+      "rewarded": true,
+      "source": "",
+      "reminder": 0
+    },
+    {
+      "id": "mvhzqlr94pvg2bi7ffk",
+      "title": "Старая просьба",
+      "date": "2026-10-21",
+      "project": "",
+      "source": "legacy-request",
+      "done": true,
+      "rewarded": true,
+      "reminder": 0
+    }
+  ],
+  "pool": [
+    {
+      "id": "legacy-request",
+      "title": "Старая просьба",
+      "tags": [
+        "health"
+      ],
+      "cooldownHours": 96,
+      "enabled": true,
+      "lastSelected": 1792566000000
+    },
+    {
+      "id": "paused",
+      "title": "Отложенная просьба",
+      "tags": [
+        "home"
+      ],
+      "cooldownHours": 168,
+      "enabled": false,
+      "lastSelected": 0
+    },
+    {
+      "id": "no-tag",
+      "title": "Без тегов",
+      "tags": [],
+      "cooldownHours": 72,
+      "enabled": true,
+      "lastSelected": 1792562400000
+    }
+  ],
+  "tags": [
+    {
+      "id": "health",
+      "name": "здоровье",
+      "hours": 24
+    },
+    {
+      "id": "home",
+      "name": "дом",
+      "hours": 72
+    }
+  ],
+  "projects": [
+    {
+      "id": "book",
+      "name": "Моя книга"
+    },
+    {
+      "id": "home-project",
+      "name": "Дом"
+    }
+  ],
+  "xp": 265,
+  "theme": "nord",
+  "intervalHours": 8,
+  "auto": true,
+  "lastRotation": 1792479600000,
+  "revision": 7
+}

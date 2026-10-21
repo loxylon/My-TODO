@@ -10,28 +10,41 @@ import org.json.*;
 /** Schema migration and date rules used by foreground and background Android work. */
 final class StatePolicy {
     static boolean upgrade(JSONObject s) throws JSONException {
-        if(s.optInt("schema",1)!=1) return false;
-        JSONArray tasks=s.getJSONArray("tasks"),pool=s.getJSONArray("pool"),kept=new JSONArray();
-        Set<String> pending=new HashSet<>();
-        for(int i=0;i<tasks.length();i++) {
-            JSONObject t=tasks.getJSONObject(i);
-            if(!t.optBoolean("done")) pending.add(t.optString("source"));
-        }
-        for(int i=0;i<pool.length();i++) {
-            JSONObject p=pool.getJSONObject(i),completed=null;
-            for(int j=0;j<tasks.length();j++) {
-                JSONObject t=tasks.getJSONObject(j);
-                if(t.optBoolean("done")&&p.getString("id").equals(t.optString("source"))) completed=t;
-            }
-            if(completed!=null&&!pending.contains(p.getString("id"))) completed.put("requestBackup",new JSONObject(p.toString()));
-            else kept.put(p);
-        }
-        s.put("pool",kept).put("schema",2);
+        return upgrade(s,System.currentTimeMillis(),ZoneId.systemDefault());
+    }
+    static boolean upgrade(JSONObject s,long now,ZoneId zone) throws JSONException {
+        int schema=s.getInt("schema");if(schema<1||schema>3)throw new JSONException("Неподдерживаемая версия данных");
+        if(schema==3)return false;
+        s.put("schema",3).put("overdueCheckDay",java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toString()).put("lastRotation",now);
+        normalizeCooldowns(s);
         return true;
+    }
+    static void normalizeCooldowns(JSONObject s) throws JSONException {
+        java.util.ArrayDeque<JSONObject> pending=new java.util.ArrayDeque<>();
+        JSONArray pool=s.getJSONArray("pool"),tasks=s.getJSONArray("tasks");
+        for(int i=0;i<pool.length();i++)pending.add(pool.getJSONObject(i));
+        for(int i=0;i<tasks.length();i++){JSONObject p=tasks.getJSONObject(i).optJSONObject("requestBackup");if(p!=null)pending.add(p);}
+        while(!pending.isEmpty()){
+            JSONObject p=pending.remove();p.put("cooldownHours",0);
+            JSONObject t=p.optJSONObject("taskBackup"),nested=t==null?null:t.optJSONObject("requestBackup");if(nested!=null)pending.add(nested);
+        }
+    }
+    static void prepareImport(JSONObject s,long now,ZoneId zone) throws JSONException {
+        upgrade(s,now,zone);normalizeCooldowns(s);
+        s.put("overdueCheckDay",java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toString()).put("lastRotation",now);
+    }
+    static double cooldownHours(JSONObject s,JSONObject p) throws JSONException {
+        double hours=0;JSONArray tags=s.getJSONArray("tags"),assigned=p.getJSONArray("tags");
+        for(int i=0;i<assigned.length();i++)for(int j=0;j<tags.length();j++){
+            JSONObject tag=tags.getJSONObject(j);if(tag.getString("id").equals(assigned.getString(i)))hours=Math.max(hours,tag.getDouble("hours"));
+        }
+        return hours;
     }
     static boolean isDated(JSONObject t) { return t.optString("project").isEmpty()||t.optBoolean("scheduled"); }
     static int moveOverdue(JSONObject s,long now,ZoneId zone) throws JSONException {
         String today=java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toString();
+        if(today.equals(s.optString("overdueCheckDay")))return 0;
+        s.put("overdueCheckDay",today);
         JSONArray tasks=s.getJSONArray("tasks"),pool=s.getJSONArray("pool"),tags=s.getJSONArray("tags"),kept=new JSONArray();
         JSONObject overdueTag=null;int moved=0;
         for(int i=0;i<tasks.length();i++) {

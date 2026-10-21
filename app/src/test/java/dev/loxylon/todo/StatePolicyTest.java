@@ -16,14 +16,14 @@ public class StatePolicyTest {
     @Test public void migratesOldRequestsWithoutLosingProjectsTagsTasksOrXp() throws Exception {
         JSONObject s=legacy();
         assertTrue(StatePolicy.upgrade(s));
-        assertEquals(2,s.getInt("schema"));
+        assertEquals(3,s.getInt("schema"));
         assertEquals(210,s.getInt("xp")); assertEquals("paper",s.getString("theme"));
         assertEquals(3,s.getJSONArray("tasks").length()); assertEquals(1,s.getJSONArray("projects").length());
         assertEquals("home",s.getJSONArray("tags").getJSONObject(0).getString("id"));
-        assertEquals(1,s.getJSONArray("pool").length());
-        assertEquals("pending-request",s.getJSONArray("pool").getJSONObject(0).getString("id"));
-        JSONObject backup=s.getJSONArray("tasks").getJSONObject(0).getJSONObject("requestBackup");
-        assertEquals("done-request",backup.getString("id")); assertEquals("home",backup.getJSONArray("tags").getString(0));
+        assertEquals(2,s.getJSONArray("pool").length());
+        assertEquals("done-request",s.getJSONArray("pool").getJSONObject(0).getString("id"));
+        assertEquals("pending-request",s.getJSONArray("pool").getJSONObject(1).getString("id"));
+        assertEquals(0,s.getJSONArray("pool").getJSONObject(1).getInt("cooldownHours"));
         assertFalse(StatePolicy.upgrade(s));
     }
     @Test public void legacyProjectTasksRemainUndated() throws Exception {

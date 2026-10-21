@@ -18,7 +18,7 @@ public final class PoolPicker {
         List<Integer> eligible = new ArrayList<>();
         for (int i = 0; i < candidates.size(); i++) {
             Candidate c = candidates.get(i);
-            if (c.enabled && !c.pending && (c.lastSelected == 0 || now - c.lastSelected >= c.cooldownMillis)) eligible.add(i);
+            if (c.enabled && !c.pending && (c.cooldownMillis <= 0 || c.lastSelected == 0 || now - c.lastSelected >= c.cooldownMillis)) eligible.add(i);
         }
         return eligible.isEmpty() ? -1 : eligible.get(random.nextInt(eligible.size()));
     }

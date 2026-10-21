@@ -3,12 +3,12 @@ const assert=require('node:assert/strict');
 const M=require('../app/src/main/assets/model.js');
 const pool=(id,extra={})=>({id,title:id,tags:[],cooldownHours:24,enabled:true,lastSelected:0,...extra});
 test('first selection, cooldown boundary, and random choice among eligible only',()=>{
-  const s=M.initial(),now=100*M.HOUR;s.pool=[pool('disabled',{enabled:false}),pool('cooling',{lastSelected:now-23*M.HOUR}),pool('available'),pool('also-available')];
+  const s=M.initial(),now=100*M.HOUR;s.tags=[{id:'daily',name:'daily',hours:24}];s.pool=[pool('disabled',{enabled:false}),pool('cooling',{tags:['daily'],lastSelected:now-23*M.HOUR}),pool('available'),pool('also-available')];
   assert.equal(M.select(s,now,()=>.99).source,'also-available');assert.equal(s.pool[3].lastSelected,now);assert.equal(s.tasks[0].date,M.day(now));
   assert.equal(M.eligible(s,s.pool[1],now),false);assert.equal(M.eligible(s,s.pool[1],now+M.HOUR),true);
 });
-test('multiple tags use longest cooldown, including task override',()=>{
-  const s=M.initial();s.tags=[{id:'a',name:'a',hours:48},{id:'b',name:'b',hours:72}];const p=pool('one',{tags:['a','b'],cooldownHours:0});assert.equal(M.cooldown(s,p),72*M.HOUR);p.cooldownHours=96;assert.equal(M.cooldown(s,p),96*M.HOUR);
+test('only tags determine cooldown and legacy per-request cooldown is ignored',()=>{
+  const s=M.initial();s.tags=[{id:'a',name:'a',hours:48},{id:'b',name:'b',hours:72}];const p=pool('one',{tags:['a','b'],cooldownHours:0});assert.equal(M.cooldown(s,p),72*M.HOUR);p.cooldownHours=96;assert.equal(M.cooldown(s,p),72*M.HOUR);
 });
 test('pending requests prevent duplicates and completed requests leave the queue permanently',()=>{
   const s=M.initial();s.pool=[pool('one',{cooldownHours:0})];assert.ok(M.select(s,100*M.HOUR));assert.equal(M.select(s,200*M.HOUR),null);M.complete(s,s.tasks[0].id);assert.equal(s.pool.length,0);assert.equal(M.select(s,200*M.HOUR),null);assert.equal(s.tasks[0].done,true);
@@ -36,7 +36,7 @@ test('undo completion restores request metadata without farming XP or duplicatin
   assert.equal(s.pool.length,0);const copy=M.validate(JSON.parse(JSON.stringify(s)));M.complete(copy,t.id);assert.equal(copy.pool.length,1);assert.deepEqual(copy.pool[0].tags,['home']);assert.equal(M.eligible(copy,copy.pool[0],200*M.HOUR),false);M.complete(copy,t.id);assert.equal(copy.pool.length,0);assert.equal(copy.xp,20);
 });
 test('version 1 backup migrates once while preserving tasks projects tags theme and experience',()=>{
-  const fixture=require('./fixtures/v1-state.json'),s=M.validate(structuredClone(fixture));assert.equal(s.schema,2);assert.equal(s.xp,fixture.xp);assert.deepEqual(s.projects,fixture.projects);assert.deepEqual(s.tags,fixture.tags);assert.equal(s.theme,'paper');assert.equal(s.tasks.length,3);assert.deepEqual(s.pool.map(p=>p.id),['pending-request']);assert.equal(s.tasks[0].requestBackup.id,'done-request');assert.equal(M.isDated(s.tasks[2]),false);assert.deepEqual(M.validate(structuredClone(s)),s);
+  const fixture=require('./fixtures/v1-state.json'),s=M.validate(structuredClone(fixture));assert.equal(s.schema,3);assert.equal(s.xp,fixture.xp);assert.deepEqual(s.projects,fixture.projects);assert.deepEqual(s.tags,fixture.tags);assert.equal(s.theme,'paper');assert.equal(s.tasks.length,3);assert.deepEqual(s.pool.map(p=>p.id),['done-request','pending-request']);assert.deepEqual(s.tasks,fixture.tasks);assert.equal(M.isDated(s.tasks[2]),false);assert.deepEqual(M.validate(structuredClone(s)),s);
 });
 test('all planned tasks become today tasks together on their date, including tasks in a project',()=>{
   const s=M.initial();s.auto=false;
