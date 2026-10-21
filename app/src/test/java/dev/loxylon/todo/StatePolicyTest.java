@@ -46,4 +46,27 @@ public class StatePolicyTest {
         assertEquals(23*3600000L,StatePolicy.nextDay(spring,zone)-spring);
         assertEquals(25*3600000L,StatePolicy.nextDay(autumn,zone)-autumn);
     }
+    private JSONObject overdueState() throws Exception {
+        try(java.io.InputStream in=getClass().getResourceAsStream("/overdue-state.json")) {
+            assertNotNull(in);return new JSONObject(new String(in.readAllBytes(),StandardCharsets.UTF_8));
+        }
+    }
+    @Test public void overdueMoveIsIdempotentPreservesMetadataAndIgnoresUndatedFutureAndCompletedTasks() throws Exception {
+        JSONObject s=overdueState();long now=Instant.parse("2026-10-22T12:00:00Z").toEpochMilli();
+        assertEquals(3,StatePolicy.moveOverdue(s,now,ZoneId.of("UTC")));
+        assertEquals(4,s.getJSONArray("tasks").length());assertEquals(3,s.getJSONArray("pool").length());assertEquals(40,s.getInt("xp"));
+        JSONArray tags=s.getJSONArray("tags");assertEquals(2,tags.length());assertEquals("просроченные",tags.getJSONObject(1).getString("name"));assertEquals(0,tags.getJSONObject(1).getInt("hours"));
+        JSONObject existing=s.getJSONArray("pool").getJSONObject(0);assertFalse(existing.getBoolean("enabled"));assertEquals(24,existing.getInt("cooldownHours"));assertEquals(2,existing.getJSONArray("tags").length());
+        assertEquals(0,StatePolicy.moveOverdue(s,now,ZoneId.of("UTC")));assertEquals(3,s.getJSONArray("pool").length());
+    }
+    @Test public void nativeSelectionRestoresProjectAndIdentityWithoutRevivingExpiredReminders() throws Exception {
+        JSONObject s=overdueState();long now=Instant.parse("2026-10-22T12:00:00Z").toEpochMilli();ZoneId zone=ZoneId.of("UTC");StatePolicy.moveOverdue(s,now,zone);
+        JSONObject request=s.getJSONArray("pool").getJSONObject(2),t=StatePolicy.taskFromRequest(s,request,now,zone);
+        assertEquals("old-project",t.getString("id"));assertEquals("repair",t.getString("project"));assertEquals("2026-10-22",t.getString("date"));assertEquals(0,t.getLong("reminder"));assertTrue(t.getBoolean("rewarded"));assertTrue(t.getBoolean("scheduled"));
+        s.put("projects",new JSONArray());assertEquals("",StatePolicy.taskFromRequest(s,request,now,zone).getString("project"));
+    }
+    @Test public void overdueBoundaryFollowsPhoneTimezone() throws Exception {
+        JSONObject s=overdueState();long before=Instant.parse("2026-10-21T20:59:59Z").toEpochMilli();ZoneId moscow=ZoneId.of("Europe/Moscow");
+        assertEquals(0,StatePolicy.moveOverdue(s,before,moscow));assertEquals(3,StatePolicy.moveOverdue(s,before+1000,moscow));
+    }
 }

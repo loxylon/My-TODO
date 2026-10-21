@@ -87,3 +87,20 @@ test('calendar navigates across year boundaries and supports creating a task for
 test('updating a v1 installation preserves projects and XP and removes previously finished requests',async({page})=>{
   const fixture=require('../fixtures/v1-state.json');await page.evaluate(data=>localStorage.setItem('mytodo',JSON.stringify(data)),fixture);await page.reload();await expect(page.locator('#footerRank')).toContainText('210 XP');await expect(page.locator('html')).toHaveCSS('--bg','#f5f3ee');await expect(page.locator('#pool .pool-item')).toHaveCount(1);await expect(page.locator('#pool')).toContainText('Передать посылку');await expect(page.locator('#pool')).not.toContainText('Забрать книгу');await page.getByRole('button',{name:'Открыть меню'}).click();await expect(page.getByRole('button',{name:'▧ Ремонт 1'})).toBeVisible();
 });
+
+test('midnight moves unfinished dated tasks into requests with one overdue tag and no duplicates',async({page})=>{
+  await page.clock.setSystemTime(new Date('2026-10-21T23:59:45+03:00'));
+  const fixture=require('../fixtures/overdue-state.json');await page.evaluate(data=>localStorage.setItem('mytodo',JSON.stringify(data)),fixture);await page.reload();
+  await expect(page.locator('#tasks .task')).toHaveCount(3);
+  await page.clock.fastForward(30000);await expect(page.locator('#tasks .task')).toHaveCount(1);await expect(page.locator('#tasks')).toContainText('Дело сегодня');
+  await expect(page.locator('#pool .pool-item')).toHaveCount(3);await expect(page.locator('#pool .chip').filter({hasText:'#просроченные'})).toHaveCount(3);await expect(page.locator('#footerRank')).toContainText('40 XP');
+  await page.reload();await expect(page.locator('#pool .pool-item')).toHaveCount(3);expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('mytodo')).tags.filter(t=>t.name==='просроченные').length)).toBe(1);
+});
+
+test('reopening moves old project work; picking and completing it retains project and request completion behavior',async({page})=>{
+  await page.evaluate(()=>{const s=Model.initial();s.auto=false;s.projects=[{id:'repair',name:'Ремонт'}];s.tasks=[{id:'project-task',title:'Купить краску',date:'2026-10-20',project:'repair',scheduled:true,done:false,rewarded:false,reminder:0}];localStorage.setItem('mytodo',JSON.stringify(s));});await page.reload();
+  await expect(page.locator('#tasks .task')).toHaveCount(0);await expect(page.locator('#pool')).toContainText('#просроченные');await expect(page.locator('#pool')).toContainText('Купить краску');
+  await page.getByRole('button',{name:'Выбрать одну сейчас',exact:false}).click();await expect(page.locator('#tasks')).toContainText('Купить краску');await expect(page.locator('#tasks')).toContainText('Ремонт');
+  await page.getByRole('button',{name:'Выполнить Купить краску',exact:true}).click();await expect(page.locator('#pool .pool-item')).toHaveCount(0);await expect(page.locator('#footerRank')).toContainText('20 XP');
+  await page.getByRole('button',{name:'Выполнено · 1',exact:false}).click();await page.getByRole('button',{name:'Вернуть Купить краску',exact:true}).click();await expect(page.locator('#pool .pool-item')).toHaveCount(1);await expect(page.locator('#pool')).toContainText('#просроченные');
+});

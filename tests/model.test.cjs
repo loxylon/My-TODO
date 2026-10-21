@@ -49,3 +49,24 @@ test('calendar counts recorded tasks across projects without counting undated pr
 test('calendar starts on Monday and handles leap years and year boundaries',()=>{
   const oct=M.calendarCells(2026,9);assert.equal(oct.length,42);assert.equal(oct[0].date,'2026-09-28');assert.equal(oct[3].date,'2026-10-01');const feb=M.calendarCells(2028,1);assert.ok(feb.some(c=>c.date==='2028-02-29'&&c.inMonth));const dec=M.calendarCells(2026,11);assert.ok(dec.some(c=>c.date.startsWith('2027-01')));assert.equal(M.validDay('2026-02-29'),false);assert.equal(M.validDay('2028-02-29'),true);
 });
+test('overdue tasks move to requests once, including dated project tasks but excluding future done and undated tasks',()=>{
+  const s=structuredClone(require('./fixtures/overdue-state.json')),now=new Date('2026-10-22T12:00:00Z').getTime();
+  assert.equal(M.moveOverdue(s,now),3);assert.deepEqual(s.tasks.map(t=>t.id),['today','future','done','undated']);assert.equal(s.pool.length,3);assert.equal(s.xp,40);
+  const tag=s.tags.find(t=>t.name==='просроченные');assert.ok(tag);assert.equal(tag.hours,0);for(const p of s.pool)assert.ok(p.tags.includes(tag.id));
+  const book=s.pool.find(p=>p.id==='request-book');assert.equal(book.enabled,false);assert.equal(book.cooldownHours,24);assert.ok(book.tags.includes('home'));
+  assert.equal(M.moveOverdue(s,now),0);assert.equal(s.pool.length,3);assert.equal(s.tags.filter(t=>t.name==='просроченные').length,1);M.validate(s);
+});
+test('rollover does not immediately select an overdue request again even when auto-selection is due',()=>{
+  const s=structuredClone(require('./fixtures/overdue-state.json')),now=new Date('2026-10-22T12:00:00Z').getTime();s.auto=true;s.lastRotation=0;M.reconcile(s,now,()=>0);assert.equal(s.pool.length,3);assert.equal(s.tasks.length,4);assert.equal(s.lastRotation,now);
+});
+test('reselecting overdue project work restores its identity and project, clears expired reminder, and preserves earned XP',()=>{
+  const s=structuredClone(require('./fixtures/overdue-state.json')),now=new Date('2026-10-22T12:00:00Z').getTime();M.moveOverdue(s,now);const request=s.pool.find(p=>p.taskBackup.id==='old-project');s.pool.forEach(p=>p.enabled=p===request);const t=M.select(s,now,()=>0);assert.equal(t.id,'old-project');assert.equal(t.project,'repair');assert.equal(t.date,M.day(now));assert.equal(t.reminder,0);assert.equal(t.scheduled,true);assert.equal(M.complete(s,t.id,now),0);assert.equal(s.xp,40);assert.ok(!s.pool.some(p=>p.id===request.id));
+});
+test('daily retry keeps one request and does not grow nested snapshots',()=>{
+  const s=M.initial();s.auto=false;const start=new Date('2026-10-21T12:00:00Z').getTime();s.tasks.push({id:'task',title:'Дело',date:M.day(start),project:'',done:false,source:'',reminder:0});
+  for(let d=1;d<=4;d++){const now=start+d*24*M.HOUR;assert.equal(M.moveOverdue(s,now),1);assert.equal(s.pool.length,1);const t=M.select(s,now,()=>0);assert.equal(t.id,'task');assert.equal(s.tasks.length,1);assert.equal(s.pool[0].taskBackup.requestBackup,undefined);}
+  assert.equal(s.tags.length,1);assert.equal(s.xp,0);M.validate(JSON.parse(JSON.stringify(s)));
+});
+test('existing overdue tag is reused and future reminder is retained when request is selected',()=>{
+  const s=M.initial(),now=new Date('2026-10-22T12:00:00Z').getTime();s.tags.push({id:'existing',name:'Просроченные',hours:0});s.tasks.push({id:'a',title:'Дело',date:'2026-10-21',project:'',done:false,reminder:now+M.HOUR});M.moveOverdue(s,now);assert.equal(s.tags.length,1);assert.deepEqual(s.pool[0].tags,['existing']);assert.equal(M.select(s,now).reminder,now+M.HOUR);
+});

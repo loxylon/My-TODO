@@ -22,6 +22,7 @@ final class Store {
     static synchronized JSONObject reconcile(Context c) throws JSONException {
         JSONObject s = read(c);
         long now = System.currentTimeMillis();
+        if(StatePolicy.moveOverdue(s,now,java.time.ZoneId.systemDefault())>0)write(c,s);
         if (!s.optBoolean("auto", true)) return s;
         long last = s.optLong("lastRotation");
         long interval = (long)(Math.max(.25, s.optDouble("intervalHours", 8)) * 3600000);
@@ -32,7 +33,8 @@ final class Store {
             JSONObject p = pool.getJSONObject(i); boolean pending = false;
             for (int j=0; j<tasks.length(); j++) {
                 JSONObject t = tasks.getJSONObject(j);
-                if (!t.optBoolean("done") && p.getString("id").equals(t.optString("source"))) { pending = true; break; }
+                JSONObject backup=p.optJSONObject("taskBackup");
+                if ((!t.optBoolean("done") && p.getString("id").equals(t.optString("source")))||(backup!=null&&t.getString("id").equals(backup.getString("id")))) { pending = true; break; }
             }
             double hours = p.optDouble("cooldownHours", 72);
             JSONArray pt = p.optJSONArray("tags");
@@ -45,7 +47,7 @@ final class Store {
         int pick = PoolPicker.choose(candidates, now, new Random());
         if (pick >= 0) {
             JSONObject p=pool.getJSONObject(pick);
-            tasks.put(new JSONObject().put("id", UUID.randomUUID().toString()).put("title", p.getString("title")).put("date", LocalDate.now().toString()).put("project", "").put("source", p.getString("id")).put("done", false).put("rewarded", false).put("reminder", 0));
+            tasks.put(StatePolicy.taskFromRequest(s,p,now,java.time.ZoneId.systemDefault()));
             p.put("lastSelected", now);
         }
         // Never dump a backlog of missed ticks into today's list.

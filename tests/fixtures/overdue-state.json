@@ -1,0 +1,16 @@
+{
+  "schema":2,
+  "tasks":[
+    {"id":"old-personal","title":"Отправить документы","date":"2026-10-21","project":"","done":false,"rewarded":false,"source":"","reminder":0},
+    {"id":"old-project","title":"Купить краску","date":"2026-10-21","project":"repair","scheduled":true,"done":false,"rewarded":true,"source":"","reminder":1792562400000},
+    {"id":"old-request","title":"Передать книгу","date":"2026-10-21","project":"","done":false,"rewarded":false,"source":"request-book","reminder":0},
+    {"id":"today","title":"Дело сегодня","date":"2026-10-22","project":"","done":false,"source":"","reminder":0},
+    {"id":"future","title":"Будущее дело","date":"2026-10-23","project":"","done":false,"source":"","reminder":0},
+    {"id":"done","title":"Выполненное дело","date":"2026-10-21","project":"","done":true,"rewarded":true,"source":"","reminder":0},
+    {"id":"undated","title":"Без срока","date":"2026-10-21","project":"repair","done":false,"source":"","reminder":0}
+  ],
+  "pool":[{"id":"request-book","title":"Передать книгу","tags":["home"],"cooldownHours":24,"enabled":false,"lastSelected":1792537200000}],
+  "tags":[{"id":"home","name":"дом","hours":72}],
+  "projects":[{"id":"repair","name":"Ремонт"}],
+  "xp":40,"theme":"sage","intervalHours":8,"auto":false,"lastRotation":1792537200000
+}

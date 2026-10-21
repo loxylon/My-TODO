@@ -73,6 +73,7 @@ public class MainActivity extends Activity {
             synchronized(Store.class) {
                 try { JSONObject s=new JSONObject(json);
                     if(s.optLong("revision")!=Store.read(MainActivity.this).optLong("revision")) return "{\"error\":\"Список обновился в фоне. Повторите изменение.\",\"conflict\":true}";
+                    StatePolicy.moveOverdue(s,System.currentTimeMillis(),java.time.ZoneId.systemDefault());
                     Store.write(MainActivity.this,s); Alarms.sync(MainActivity.this,s); return s.toString(); }
                 catch(Exception e) { android.util.Log.e("MyTODO","Save failed",e); return "{\"error\":\"Не удалось сохранить данные или напоминания\"}"; }
             }

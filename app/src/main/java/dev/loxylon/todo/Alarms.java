@@ -27,22 +27,27 @@ final class Alarms {
         AlarmManager am=c.getSystemService(AlarmManager.class);
         android.content.SharedPreferences prefs=c.getSharedPreferences("alarms",0);
         for(String id:prefs.getStringSet("ids",Collections.emptySet())) am.cancel(intent(c,id));
-        Set<String> ids=new HashSet<>(); long now=System.currentTimeMillis();
+        Set<String> ids=new HashSet<>(),activeTaskIds=new HashSet<>(); long now=System.currentTimeMillis();
         JSONArray tasks=s.getJSONArray("tasks");
         for(int i=0;i<tasks.length();i++) {
             JSONObject t=tasks.getJSONObject(i); long when=t.optLong("reminder");
+            activeTaskIds.add(t.getString("id"));
             if(t.optBoolean("done")) c.getSystemService(NotificationManager.class).cancel(t.getString("id"),1);
             if(!t.optBoolean("done") && when>now && !t.optBoolean("notified")) {
                 String id=t.getString("id"); at(c,id,when); ids.add(id);
             }
         }
+        NotificationManager notifications=c.getSystemService(NotificationManager.class);
+        for(android.service.notification.StatusBarNotification n:notifications.getActiveNotifications()) {
+            if(n.getTag()!=null&&!activeTaskIds.contains(n.getTag()))notifications.cancel(n.getTag(),n.getId());
+        }
         if(s.optBoolean("auto",true) && s.getJSONArray("pool").length()>0) {
             at(c,"rotation", Math.max(now+1000,s.optLong("lastRotation")+(long)(Math.max(.25,s.optDouble("intervalHours",8))*3600000))); ids.add("rotation");
         }
-        // Date-based tasks become today's tasks independently of request rotation.
+        // Midnight also moves today's unfinished tasks to the request queue.
         for(int i=0;i<tasks.length();i++) {
             JSONObject t=tasks.getJSONObject(i);
-            if(!t.optBoolean("done")&&StatePolicy.isDated(t)&&!StatePolicy.isDue(t,java.time.LocalDate.now())) {
+            if(!t.optBoolean("done")&&StatePolicy.isDated(t)) {
                 at(c,"day-rollover",StatePolicy.nextDay(now,java.time.ZoneId.systemDefault())); ids.add("day-rollover"); break;
             }
         }
