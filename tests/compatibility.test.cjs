@@ -7,7 +7,7 @@ function expectedRecords(input){
   while(pending.length){const p=pending.pop();p.cooldownHours=0;if(p.taskBackup?.requestBackup)pending.push(p.taskBackup.requestBackup);}
   return s;
 }
-for(const version of ['1.0.0','1.1.0','1.2.0']){
+for(const version of ['1.0.0','1.1.0','1.2.0','1.3.0']){
   test(`JSON ${version}: migration and restore preserve every task, request, project, tag, date and rank`,()=>{
     const input=require(`./fixtures/backups/v${version}.json`),expected=expectedRecords(input);
     for(const operation of [M.validate,M.prepareImport]){
@@ -17,7 +17,7 @@ for(const version of ['1.0.0','1.1.0','1.2.0']){
       const before=structuredClone(restored);M.reconcile(restored,now,()=>0);
       assert.deepEqual(restored,before,'first launch must not move or select existing work');
       assert.deepEqual(M.validate(JSON.parse(JSON.stringify(restored)),now),restored,'export and import must round trip');
-      assert.equal(M.moveOverdue(restored,now+24*M.HOUR),{'1.0.0':1,'1.1.0':2,'1.2.0':0}[version],'normal overdue processing resumes the next day');
+      assert.equal(M.moveOverdue(restored,now+24*M.HOUR),{'1.0.0':1,'1.1.0':2,'1.2.0':0,'1.3.0':2}[version],'normal overdue processing resumes the next day');
     }
   });
 }

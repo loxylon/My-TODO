@@ -105,7 +105,7 @@ test('reopening moves old project work; picking and completing it retains projec
   await page.getByRole('button',{name:'Выполнено · 1',exact:false}).click();await page.getByRole('button',{name:'Вернуть Купить краску',exact:true}).click();await expect(page.locator('#pool .pool-item')).toHaveCount(1);await expect(page.locator('#pool')).toContainText('#просроченные');
 });
 
-for(const version of ['1.0.0','1.1.0','1.2.0']){
+for(const version of ['1.0.0','1.1.0','1.2.0','1.3.0']){
   test(`JSON ${version}: restore keeps all lists intact, saves previous state and round trips export`,async({page})=>{
     const fixture=require(`../fixtures/backups/v${version}.json`);
     await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Дело до восстановления');await page.getByRole('button',{name:'Добавить дело · +5 XP'}).click();
@@ -122,7 +122,7 @@ for(const version of ['1.0.0','1.1.0','1.2.0']){
     expect(exported.tasks).toEqual(restored.tasks);expect(exported.pool).toEqual(restored.pool);
     await page.getByRole('button',{name:'Закрыть',exact:true}).click();await page.evaluate(data=>receiveBackup(JSON.stringify(data)),exported);await page.getByRole('button',{name:'Подтвердить',exact:true}).click();expect((await page.evaluate(()=>JSON.parse(localStorage.getItem('mytodo')))).tasks).toEqual(restored.tasks);
   });
-  test(`upgrading installed ${version} data leaves overdue tasks in place and keeps original safety copy`,async({page})=>{
+  if(version!=='1.3.0')test(`upgrading installed ${version} data leaves overdue tasks in place and keeps original safety copy`,async({page})=>{
     const fixture=require(`../fixtures/backups/v${version}.json`),raw=JSON.stringify(fixture);await page.evaluate(raw=>localStorage.setItem('mytodo',raw),raw);await page.reload();
     const state=await page.evaluate(()=>JSON.parse(localStorage.getItem('mytodo')));expect(state.tasks.map(t=>t.id)).toEqual(fixture.tasks.map(t=>t.id));expect(state.pool.map(p=>p.id)).toEqual(fixture.pool.map(p=>p.id));expect(await page.evaluate(()=>backupSource('beforeMigration'))).toBe(raw);
     await page.reload();expect(await page.evaluate(()=>backupSource('beforeMigration'))).toBe(raw);

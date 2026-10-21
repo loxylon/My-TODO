@@ -10,6 +10,10 @@
     const d=new Date(value+'T12:00:00');
     return Number.isFinite(d.getTime())&&day(d.getTime())===value;
   }
+  function addDays(date,amount) {
+    const d=new Date(date+'T12:00:00');d.setDate(d.getDate()+amount);const result=day(d.getTime());
+    if(!validDay(result))throw Error('Дата следующего повтора выходит за допустимый диапазон');return result;
+  }
   function normalizeCooldowns(s) {
     const pending=[...s.pool,...s.tasks.map(t=>t.requestBackup).filter(Boolean)],seen=new Set();
     while(pending.length){const p=pending.pop();if(seen.has(p))continue;seen.add(p);p.cooldownHours=0;if(p.taskBackup?.requestBackup)pending.push(p.taskBackup.requestBackup);}
@@ -29,7 +33,7 @@
     if(!tag){tag={id:uid(),name:'просроченные',hours:0};s.tags.push(tag);}
     for(const t of overdue){
       let p=s.pool.find(p=>p.id===t.source&&(!p.taskBackup||p.taskBackup.id===t.id));
-      if(!p){p={id:uid(),title:t.title,tags:[],cooldownHours:0,enabled:true,lastSelected:0};s.pool.push(p);}
+      if(!p){p=t.requestBackup?JSON.parse(JSON.stringify(t.requestBackup)):{id:uid(),title:t.title,tags:[],cooldownHours:0,enabled:true,lastSelected:0};s.pool.push(p);}
       const backup=JSON.parse(JSON.stringify(t));delete backup.requestBackup;
       p.title=t.title;p.taskBackup=backup;p.overdueDate=t.date;
       if(!p.tags.includes(tag.id))p.tags.push(tag.id);
@@ -70,27 +74,56 @@
     const available=s.pool.filter(p=>eligible(s,p,now)); if(!available.length) return null;
     const p=available[Math.min(available.length-1,Math.floor(random()*available.length))];
     const t=p.taskBackup?JSON.parse(JSON.stringify(p.taskBackup)):{id:uid(),rewarded:false};
-    delete t.requestBackup;
+    delete t.requestBackup;delete t.manualRequest;
     Object.assign(t,{title:p.title,date:day(now),project:s.projects.some(x=>x.id===t.project)?t.project:'',source:p.id,done:false,reminder:t.reminder>now?t.reminder:0,notified:false});
     if(p.taskBackup)t.scheduled=true;
     s.tasks.push(t); p.lastSelected=now; return t;
+  }
+  // Explicit scheduling is a user decision, independent of automatic cooldown/exclusions.
+  function scheduleRequest(s,id,date,now=Date.now()) {
+    if(!validDay(date)||date<day(now))throw Error('Выберите сегодня или будущую дату');
+    const p=s.pool.find(p=>p.id===id);if(!p)throw Error('Просьба уже перенесена или удалена');
+    const existing=s.tasks.find(t=>(t.source===id&&!t.done)||t.id===p.taskBackup?.id);
+    if(existing?.done)throw Error('Эта задача уже выполнена');
+    const t=existing||(p.taskBackup?JSON.parse(JSON.stringify(p.taskBackup)):{id:uid(),rewarded:false});
+    Object.assign(t,{title:p.title,date,scheduled:true,project:s.projects.some(x=>x.id===t.project)?t.project:'',source:p.id,done:false,manualRequest:true,reminder:t.reminder>now&&day(t.reminder)>=date?t.reminder:0,notified:false});
+    p.lastSelected=now;t.requestBackup=JSON.parse(JSON.stringify(p));
+    if(!existing)s.tasks.push(t);s.pool=s.pool.filter(p=>p.id!==id);return t;
   }
   function rotate(s,now=Date.now(),random=Math.random) {
     if(!s.auto || (s.lastRotation && now-s.lastRotation<s.intervalHours*HOUR)) return null;
     const t=select(s,now,random); s.lastRotation=now; return t;
   }
   function complete(s,id,now=Date.now()) {
-    const t=s.tasks.find(t=>t.id===id); if(!t) return 0;
-    t.done=!t.done; let xp=0;
-    if(t.done) {
+    const t=s.tasks.find(t=>t.id===id);if(!t)return 0;
+    if(t.done&&t.repeatNext){
+      const later=[...s.tasks,...s.pool.map(p=>p.taskBackup).filter(Boolean)].some(n=>t.repeatSeries&&n.repeatSeries===t.repeatSeries&&n.repeatIndex>(t.repeatIndex||0)+1);
+      if(later)throw Error('Сначала отмените выполнение следующих повторов');
+      const next=s.tasks.find(n=>n.id===t.repeatNext&&n.repeatParent===id);
+      const request=s.pool.find(p=>p.taskBackup?.id===t.repeatNext&&p.taskBackup.repeatParent===id);
+      if(next?.done)throw Error('Сначала отмените выполнение следующего повтора');
+      if(next){s.tasks=s.tasks.filter(n=>n.id!==next.id);s.pool=s.pool.filter(p=>p.id!==next.source);}
+      if(request)s.pool=s.pool.filter(p=>p.id!==request.id);
+      delete t.repeatNext;
+    }
+    let next;
+    if(!t.done&&t.repeatDays){
+      const date=addDays(day(now),t.repeatDays);
+      let reminder=0;
+      if(t.reminder){const old=new Date(t.reminder),d=new Date(date+'T12:00:00');d.setHours(old.getHours(),old.getMinutes(),0,0);reminder=d.getTime();}
+      next={id:uid(),title:t.title,date,scheduled:true,project:t.project,done:false,rewarded:false,source:'',reminder,notified:false,repeatDays:t.repeatDays,repeatParent:t.id,repeatSeries:t.repeatSeries||t.id,repeatIndex:(t.repeatIndex||0)+1};
+    }
+    t.done=!t.done;let xp=0;
+    if(t.done){
       t.completedDate=day(now);
       const request=s.pool.find(p=>p.id===t.source);
-      if(request) { t.requestBackup=JSON.parse(JSON.stringify(request)); s.pool=s.pool.filter(p=>p.id!==request.id); }
-    } else {
+      if(request){t.requestBackup=JSON.parse(JSON.stringify(request));s.pool=s.pool.filter(p=>p.id!==request.id);}
+      if(next){t.repeatSeries=next.repeatSeries;t.repeatIndex=next.repeatIndex-1;t.repeatNext=next.id;s.tasks.push(next);}
+    }else{
       delete t.completedDate;
-      if(t.requestBackup&&!s.pool.some(p=>p.id===t.requestBackup.id)) s.pool.push(JSON.parse(JSON.stringify(t.requestBackup)));
+      if(t.requestBackup&&!t.manualRequest&&!s.pool.some(p=>p.id===t.requestBackup.id))s.pool.push(JSON.parse(JSON.stringify(t.requestBackup)));
     }
-    if(t.done&&!t.rewarded) { t.rewarded=true; xp=20; s.xp+=xp; }
+    if(t.done&&!t.rewarded){t.rewarded=true;xp=20;s.xp+=xp;}
     return xp;
   }
   function validate(s,now=Date.now()) {
@@ -109,12 +142,18 @@
       const t=p.taskBackup;
       if(t&&(typeof t.id!=='string'||!/^[\w-]{1,100}$/.test(t.id)||['rotation','day-rollover'].includes(t.id)||typeof t.title!=='string'||!t.title.trim()||t.title.length>300||typeof t.project!=='string'||!validDay(t.date)||t.done!==false||!Number.isFinite(t.reminder)||t.reminder<0||t.requestBackup!==undefined||(t.scheduled!==undefined&&typeof t.scheduled!=='boolean')))throw Error('Некорректная задача в просьбе');
     }
+    for(const t of [...s.tasks,...requests.map(p=>p.taskBackup).filter(Boolean)]) {
+      if(t.repeatDays!==undefined&&(!Number.isInteger(t.repeatDays)||t.repeatDays<0||t.repeatDays>3650))throw Error('Интервал повтора должен быть целым числом от 1 до 3650 дней');
+      for(const key of ['repeatNext','repeatParent','repeatSeries'])if(t[key]!==undefined&&(typeof t[key]!=='string'||!/^[\w-]{1,100}$/.test(t[key])||(key!=='repeatSeries'&&t[key]===t.id)))throw Error('Некорректная связь повторяющихся дел');
+      if(t.repeatIndex!==undefined&&(!Number.isInteger(t.repeatIndex)||t.repeatIndex<0||t.repeatIndex>1000000||!t.repeatSeries))throw Error('Некорректный номер повтора');
+      if(t.manualRequest!==undefined&&typeof t.manualRequest!=='boolean')throw Error('Некорректный перенос просьбы');
+    }
     for(const t of s.tags) if(typeof t.name!=='string'||!t.name.trim()||t.name.length>60||!Number.isFinite(t.hours)||t.hours<0||t.hours>87600) throw Error('Некорректный тег');
     for(const p of s.projects) if(typeof p.name!=='string'||!p.name.trim()||p.name.length>60) throw Error('Некорректный проект');
     if(!Number.isFinite(s.xp)||s.xp<0||s.xp>1e9||!Number.isFinite(s.intervalHours)||s.intervalHours<.25||s.intervalHours>8760||typeof s.auto!=='boolean'||!Number.isFinite(s.lastRotation)||s.lastRotation<0) throw Error('Некорректные настройки');
     if(s.overdueCheckDay!==undefined&&!validDay(s.overdueCheckDay))throw Error('Некорректная дата обработки задач');
     return migrate(s,now);
   }
-  const API={HOUR,rankNames,uid,day,validDay,initial,migrate,prepareImport,isDated,moveOverdue,reconcile,todayTasks,tasksOnDate,calendarCounts,calendarCells,threshold,rank,cooldown,availability,eligible,select,rotate,complete,validate};
+  const API={HOUR,rankNames,uid,day,validDay,addDays,initial,migrate,prepareImport,isDated,moveOverdue,reconcile,todayTasks,tasksOnDate,calendarCounts,calendarCells,threshold,rank,cooldown,availability,eligible,select,scheduleRequest,rotate,complete,validate};
   if(typeof module!=='undefined') module.exports=API; else root.Model=API;
 })(typeof window!=='undefined'?window:globalThis);

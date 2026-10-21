@@ -33,4 +33,12 @@ public class OverdueSchedulerTest {
         assertEquals("просроченные",first.getJSONArray("tags").getJSONObject(0).getString("name"));
         JSONObject next=Store.reconcile(c);assertEquals(first.toString(),next.toString());assertEquals(first.toString(),Store.read(c).toString());
     }
+    @Test public void futureRepeatSchedulesMidnightAndReminderWithoutGeneratingExtraCopies() throws Exception {
+        Context c=RuntimeEnvironment.getApplication();JSONObject s=state(LocalDate.now().plusDays(3).toString());
+        long reminder=System.currentTimeMillis()+3*24*3600000L;
+        JSONObject t=s.getJSONArray("tasks").getJSONObject(0);t.put("repeatDays",3).put("repeatParent","previous").put("repeatSeries","previous").put("repeatIndex",1).put("reminder",reminder);
+        Store.write(c,s);Alarms.sync(c,s);ShadowAlarmManager am=Shadows.shadowOf(c.getSystemService(AlarmManager.class));assertEquals(2,am.getScheduledAlarms().size());
+        JSONObject reconciled=Store.reconcile(c);assertEquals(1,reconciled.getJSONArray("tasks").length());assertEquals(0,reconciled.getJSONArray("pool").length());assertEquals(3,reconciled.getJSONArray("tasks").getJSONObject(0).getInt("repeatDays"));assertEquals(reminder,reconciled.getJSONArray("tasks").getJSONObject(0).getLong("reminder"));
+    }
+
 }

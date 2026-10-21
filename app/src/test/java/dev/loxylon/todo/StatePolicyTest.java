@@ -69,4 +69,14 @@ public class StatePolicyTest {
         JSONObject s=overdueState();long before=Instant.parse("2026-10-21T20:59:59Z").toEpochMilli();ZoneId moscow=ZoneId.of("Europe/Moscow");
         assertEquals(0,StatePolicy.moveOverdue(s,before,moscow));assertEquals(3,StatePolicy.moveOverdue(s,before+1000,moscow));
     }
+    @Test public void manuallyScheduledRequestReturnsWithTagsExclusionAndRepeatMetadata() throws Exception {
+        JSONObject s=overdueState(),t=s.getJSONArray("tasks").getJSONObject(0);
+        JSONObject origin=new JSONObject().put("id","manual-origin").put("title",t.getString("title")).put("tags",new JSONArray().put("home")).put("enabled",false).put("cooldownHours",0).put("lastSelected",12);
+        t.put("source","manual-origin").put("requestBackup",origin).put("manualRequest",true).put("repeatDays",3).put("repeatSeries",t.getString("id")).put("repeatIndex",0);
+        long now=Instant.parse("2026-10-22T12:00:00Z").toEpochMilli();ZoneId zone=ZoneId.of("UTC");StatePolicy.moveOverdue(s,now,zone);
+        JSONObject found=null;JSONArray pool=s.getJSONArray("pool");for(int i=0;i<pool.length();i++)if(pool.getJSONObject(i).getString("id").equals("manual-origin"))found=pool.getJSONObject(i);
+        assertNotNull(found);assertFalse(found.getBoolean("enabled"));assertEquals("home",found.getJSONArray("tags").getString(0));assertEquals(2,found.getJSONArray("tags").length());
+        JSONObject selected=StatePolicy.taskFromRequest(s,found,now,zone);assertEquals(3,selected.getInt("repeatDays"));assertEquals(0,selected.getInt("repeatIndex"));assertFalse(selected.has("manualRequest"));assertFalse(selected.has("requestBackup"));
+    }
+
 }

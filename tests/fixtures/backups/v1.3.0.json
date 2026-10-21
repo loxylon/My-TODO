@@ -1,0 +1,128 @@
+{
+  "schema": 3,
+  "tasks": [
+    {
+      "id": "old-today",
+      "title": "Незавершённое старое дело",
+      "date": "2026-10-20",
+      "project": "",
+      "done": false,
+      "rewarded": false,
+      "source": "",
+      "reminder": 0
+    },
+    {
+      "id": "project-item",
+      "title": "Написать главу",
+      "date": "2026-10-20",
+      "project": "book",
+      "done": false,
+      "rewarded": false,
+      "source": "",
+      "reminder": 0
+    },
+    {
+      "id": "done-item",
+      "title": "Уже готово",
+      "date": "2026-10-20",
+      "project": "",
+      "done": true,
+      "rewarded": true,
+      "source": "",
+      "reminder": 0
+    },
+    {
+      "id": "dated-project",
+      "title": "Купить краску",
+      "date": "2026-10-20",
+      "project": "home-project",
+      "scheduled": true,
+      "done": false,
+      "rewarded": true,
+      "source": "",
+      "reminder": 1792569600000
+    },
+    {
+      "id": "future-task",
+      "title": "Будущее дело",
+      "date": "2026-10-25",
+      "project": "",
+      "scheduled": true,
+      "done": false,
+      "rewarded": false,
+      "source": "",
+      "reminder": 1793430000000
+    },
+    {
+      "id": "mvi1el2z3qk9voon18g",
+      "rewarded": true,
+      "title": "Старая просьба",
+      "date": "2026-10-21",
+      "project": "",
+      "source": "legacy-request",
+      "done": true,
+      "reminder": 0,
+      "notified": false,
+      "completedDate": "2026-10-21",
+      "requestBackup": {
+        "id": "legacy-request",
+        "title": "Старая просьба",
+        "tags": [
+          "health"
+        ],
+        "cooldownHours": 0,
+        "enabled": true,
+        "lastSelected": 1792566000000
+      }
+    }
+  ],
+  "pool": [
+    {
+      "id": "paused",
+      "title": "Отложенная просьба",
+      "tags": [
+        "home"
+      ],
+      "cooldownHours": 0,
+      "enabled": false,
+      "lastSelected": 0
+    },
+    {
+      "id": "no-tag",
+      "title": "Без тегов",
+      "tags": [],
+      "cooldownHours": 0,
+      "enabled": true,
+      "lastSelected": 1792562400000
+    }
+  ],
+  "tags": [
+    {
+      "id": "health",
+      "name": "здоровье",
+      "hours": 24
+    },
+    {
+      "id": "home",
+      "name": "дом",
+      "hours": 72
+    }
+  ],
+  "projects": [
+    {
+      "id": "book",
+      "name": "Моя книга"
+    },
+    {
+      "id": "home-project",
+      "name": "Дом"
+    }
+  ],
+  "xp": 265,
+  "theme": "nord",
+  "intervalHours": 8,
+  "auto": true,
+  "lastRotation": 1792566000000,
+  "overdueCheckDay": "2026-10-21",
+  "revision": 7
+}

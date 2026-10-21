@@ -34,7 +34,7 @@ public class BackupCompatibilityTest {
     }
     @Test public void restoringAnyReleasedJsonSavesThePreviousDataAndDoesNotImmediatelyMoveImportedTasks() throws Exception {
         Context c=RuntimeEnvironment.getApplication();
-        for(String version:new String[]{"1.0.0","1.1.0","1.2.0"}){
+        for(String version:new String[]{"1.0.0","1.1.0","1.2.0","1.3.0"}){
             String previous=fixture("1.2.0");c.getSharedPreferences("todo",0).edit().clear().putString("state",previous).commit();
             JSONObject imported=new JSONObject(fixture(version));StatePolicy.prepareImport(imported,System.currentTimeMillis(),ZoneId.systemDefault());
             JSONObject expected=new JSONObject(imported.toString());Store.write(c,imported,"beforeImport");
