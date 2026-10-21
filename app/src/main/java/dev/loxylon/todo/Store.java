@@ -8,15 +8,19 @@ import java.util.*;
 final class Store {
     private static JSONObject load(Context c) throws JSONException {
         String raw = c.getSharedPreferences("todo", 0).getString("state", "");
-        return raw.isEmpty() ? new JSONObject("{\"schema\":1,\"tasks\":[],\"pool\":[],\"tags\":[],\"projects\":[],\"xp\":0,\"theme\":\"sage\",\"intervalHours\":8,\"auto\":true,\"lastRotation\":0}") : new JSONObject(raw);
+        return raw.isEmpty() ? new JSONObject("{\"schema\":2,\"tasks\":[],\"pool\":[],\"tags\":[],\"projects\":[],\"xp\":0,\"theme\":\"sage\",\"intervalHours\":8,\"auto\":true,\"lastRotation\":0}") : new JSONObject(raw);
     }
-    static synchronized JSONObject read(Context c) throws JSONException { return load(c); }
+    static synchronized JSONObject read(Context c) throws JSONException {
+        JSONObject s=load(c);
+        if(StatePolicy.upgrade(s)) write(c,s);
+        return s;
+    }
     static synchronized void write(Context c, JSONObject s) throws JSONException {
         s.put("revision", load(c).optLong("revision")+1);
         if (!c.getSharedPreferences("todo", 0).edit().putString("state", s.toString()).commit()) throw new IllegalStateException("Не удалось сохранить данные: проверьте свободное место");
     }
     static synchronized JSONObject reconcile(Context c) throws JSONException {
-        JSONObject s = load(c);
+        JSONObject s = read(c);
         long now = System.currentTimeMillis();
         if (!s.optBoolean("auto", true)) return s;
         long last = s.optLong("lastRotation");

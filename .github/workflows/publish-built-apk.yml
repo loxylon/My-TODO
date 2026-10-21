@@ -25,7 +25,14 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs My-TODO.apk > signature.txt
           cat signature.txt
           grep -Fx 'Signer #1 certificate SHA-256 digest: 0b0c76696ae7a62cf28b58ea34ed790d3380c1f48e45ba1b066975e637ed17ee' signature.txt
+          VERSION=$(cat VERSION)
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging My-TODO.apk > package.txt
+          grep -F "package: name='dev.loxylon.todo'" package.txt
+          grep -F "versionName='$VERSION'" package.txt
       - name: Upload signed APK to draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload v1.0.0 release/My-TODO.apk release/SHA256SUMS.txt --clobber
+        run: |
+          VERSION=$(cat release/VERSION)
+          gh release upload "v$VERSION" release/My-TODO.apk release/SHA256SUMS.txt --clobber

@@ -39,6 +39,13 @@ final class Alarms {
         if(s.optBoolean("auto",true) && s.getJSONArray("pool").length()>0) {
             at(c,"rotation", Math.max(now+1000,s.optLong("lastRotation")+(long)(Math.max(.25,s.optDouble("intervalHours",8))*3600000))); ids.add("rotation");
         }
+        // Date-based tasks become today's tasks independently of request rotation.
+        for(int i=0;i<tasks.length();i++) {
+            JSONObject t=tasks.getJSONObject(i);
+            if(!t.optBoolean("done")&&StatePolicy.isDated(t)&&!StatePolicy.isDue(t,java.time.LocalDate.now())) {
+                at(c,"day-rollover",StatePolicy.nextDay(now,java.time.ZoneId.systemDefault())); ids.add("day-rollover"); break;
+            }
+        }
         prefs.edit().putStringSet("ids",ids).apply();
     }
     static void notifyDue(Context c) throws JSONException {

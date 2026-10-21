@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "tasks": [
+    {"id":"done-task","title":"Забрать книгу","date":"2026-10-20","project":"","source":"done-request","done":true,"rewarded":true,"reminder":0},
+    {"id":"pending-task","title":"Передать посылку","date":"2026-10-20","project":"","source":"pending-request","done":false,"rewarded":false,"reminder":0},
+    {"id":"project-task","title":"Выбрать материалы","date":"2026-10-20","project":"renovation","source":"","done":false,"rewarded":false,"reminder":0}
+  ],
+  "pool": [
+    {"id":"done-request","title":"Забрать книгу","tags":["home"],"cooldownHours":0,"enabled":true,"lastSelected":1792454400000},
+    {"id":"pending-request","title":"Передать посылку","tags":[],"cooldownHours":24,"enabled":false,"lastSelected":1792454400000}
+  ],
+  "tags": [{"id":"home","name":"дом","hours":72}],
+  "projects": [{"id":"renovation","name":"Ремонт"}],
+  "xp":210,"theme":"paper","intervalHours":8,"auto":true,"lastRotation":1792454400000
+}

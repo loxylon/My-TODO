@@ -12,9 +12,16 @@ import org.json.*;
 
 public class MainActivity extends Activity {
     private WebView web;
+    private android.widget.FrameLayout content;
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        // Allocate the viewport inside system bars; WebView's own padding does
+        // not reliably move its rendered content on Android/OxygenOS.
+        if(Build.VERSION.SDK_INT>=30) getWindow().setDecorFitsSystemWindows(false);
+        else getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE|View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+        content=new android.widget.FrameLayout(this);
+        content.setBackgroundColor(Color.rgb(21,25,30));
         web=new WebView(this); web.setBackgroundColor(Color.rgb(21,25,30));
         web.getSettings().setJavaScriptEnabled(true);
         web.getSettings().setAllowFileAccess(false); web.getSettings().setAllowContentAccess(false);
@@ -34,12 +41,24 @@ public class MainActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r) { return !"app.local".equals(r.getUrl().getHost()); }
         });
         web.addJavascriptInterface(new Bridge(),"Android");
-        setContentView(web);
-        if(Build.VERSION.SDK_INT>=35) web.setOnApplyWindowInsetsListener((v,insets)->{
-            android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
-            android.graphics.Insets ime=insets.getInsets(WindowInsets.Type.ime());
-            v.setPadding(bars.left,bars.top,bars.right,Math.max(bars.bottom,ime.bottom)); return insets;
+        android.widget.FrameLayout viewport=new android.widget.FrameLayout(this);
+        viewport.addView(web,new android.widget.FrameLayout.LayoutParams(-1,-1));
+        content.addView(viewport,new android.widget.FrameLayout.LayoutParams(-1,-1));
+        content.setOnApplyWindowInsetsListener((v,insets)->{
+            int left,top,right,bottom;
+            if(Build.VERSION.SDK_INT>=30) {
+                android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
+                android.graphics.Insets ime=insets.getInsets(WindowInsets.Type.ime());
+                left=bars.left;top=bars.top;right=bars.right;bottom=Math.max(bars.bottom,ime.bottom);
+            } else {
+                left=insets.getSystemWindowInsetLeft();top=insets.getSystemWindowInsetTop();
+                right=insets.getSystemWindowInsetRight();bottom=insets.getSystemWindowInsetBottom();
+            }
+            v.setPadding(left,top+Math.round(8*getResources().getDisplayMetrics().density),right,bottom);
+            return Build.VERSION.SDK_INT>=30?WindowInsets.CONSUMED:insets.consumeSystemWindowInsets();
         });
+        setContentView(content);
+        content.requestApplyInsets();
         web.loadUrl("https://app.local/index.html");
     }
     @Override protected void onResume() {
@@ -72,7 +91,13 @@ public class MainActivity extends Activity {
             } catch(Exception e) { android.widget.Toast.makeText(MainActivity.this,"Не удалось открыть выбор файла",android.widget.Toast.LENGTH_SHORT).show(); } });
         }
         @JavascriptInterface public void importBackup() { runOnUiThread(()->startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE),3)); }
-        @JavascriptInterface public void colors(String background, boolean light) { runOnUiThread(()->{ try { int c=Color.parseColor(background); getWindow().setStatusBarColor(c); getWindow().setNavigationBarColor(c); getWindow().getDecorView().setSystemUiVisibility(light?View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR:0); } catch(Exception ignored){} }); }
+        @JavascriptInterface public void colors(String background, boolean light) { runOnUiThread(()->{ try {
+            int c=Color.parseColor(background); content.setBackgroundColor(c);web.setBackgroundColor(c);
+            getWindow().setStatusBarColor(c); getWindow().setNavigationBarColor(c);
+            int flags=getWindow().getDecorView().getSystemUiVisibility();
+            int lightFlags=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            getWindow().getDecorView().setSystemUiVisibility(light?flags|lightFlags:flags&~lightFlags);
+        } catch(Exception ignored){} }); }
         @JavascriptInterface public void close() { runOnUiThread(()->finish()); }
     }
     private String pendingBackup;
