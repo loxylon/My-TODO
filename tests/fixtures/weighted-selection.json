@@ -1,0 +1,266 @@
+[
+  {
+    "name": "three to one: below 75 percent",
+    "now": 1000000,
+    "candidates": [
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 997000
+      },
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 999000
+      }
+    ],
+    "draw": 0.749999,
+    "expected": 0
+  },
+  {
+    "name": "three to one: exact 75 percent boundary",
+    "now": 1000000,
+    "candidates": [
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 997000
+      },
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 999000
+      }
+    ],
+    "draw": 0.75,
+    "expected": 1
+  },
+  {
+    "name": "reversed order preserves age ratio",
+    "now": 1000000,
+    "candidates": [
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 999000
+      },
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 997000
+      }
+    ],
+    "draw": 0.25,
+    "expected": 1
+  },
+  {
+    "name": "equal waiting time is uniform",
+    "now": 1000000,
+    "candidates": [
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 999000
+      },
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 999000
+      }
+    ],
+    "draw": 0.5,
+    "expected": 1
+  },
+  {
+    "name": "excluded ancient requests have zero weight",
+    "now": 1000000,
+    "candidates": [
+      {
+        "enabled": false,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 900000
+      },
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 999000
+      }
+    ],
+    "draw": 0,
+    "expected": 1
+  },
+  {
+    "name": "pending ancient requests have zero weight",
+    "now": 1000000,
+    "candidates": [
+      {
+        "enabled": true,
+        "pending": true,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 900000
+      },
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 999000
+      }
+    ],
+    "draw": 0,
+    "expected": 1
+  },
+  {
+    "name": "cooldown ancient requests have zero weight",
+    "now": 1000000,
+    "candidates": [
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 999900,
+        "cooldownMillis": 200,
+        "queuedAt": 900000
+      },
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 999000
+      }
+    ],
+    "draw": 0,
+    "expected": 1
+  },
+  {
+    "name": "cooldown exact boundary restores weighted selection",
+    "now": 1000000,
+    "candidates": [
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 999800,
+        "cooldownMillis": 200,
+        "queuedAt": 997000
+      },
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 999000
+      }
+    ],
+    "draw": 0.749999,
+    "expected": 0
+  },
+  {
+    "name": "newborn request gets positive minimal weight",
+    "now": 1000000,
+    "candidates": [
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 1000000
+      },
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 999999
+      }
+    ],
+    "draw": 0.49,
+    "expected": 0
+  },
+  {
+    "name": "clock moving back cannot yield negative weights",
+    "now": 1000000,
+    "candidates": [
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 1000100
+      },
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 999999
+      }
+    ],
+    "draw": 0.5,
+    "expected": 1
+  },
+  {
+    "name": "all excluded produces no task",
+    "now": 1000000,
+    "candidates": [
+      {
+        "enabled": false,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 999000
+      }
+    ],
+    "draw": 0.9,
+    "expected": -1
+  },
+  {
+    "name": "last candidate reachable near one",
+    "now": 1000000,
+    "candidates": [
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 995000
+      },
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 998000
+      },
+      {
+        "enabled": true,
+        "pending": false,
+        "lastSelected": 0,
+        "cooldownMillis": 0,
+        "queuedAt": 999000
+      }
+    ],
+    "draw": 0.999999,
+    "expected": 2
+  }
+]

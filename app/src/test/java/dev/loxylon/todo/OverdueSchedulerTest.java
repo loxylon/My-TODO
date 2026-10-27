@@ -17,7 +17,7 @@ import static org.junit.Assert.*;
 public class OverdueSchedulerTest {
     private JSONObject state(String date) throws Exception {
         return new JSONObject("{\"schema\":3,\"tasks\":[],\"pool\":[],\"tags\":[],\"projects\":[],\"auto\":false,\"lastRotation\":0,\"intervalHours\":8,\"xp\":0}")
-            .put("overdueCheckDay",LocalDate.now().minusDays(1).toString()).put("tasks",new JSONArray().put(new JSONObject().put("id","a").put("title","Дело").put("date",date).put("project","").put("done",false).put("reminder",0)));
+            .put("queueClockStartedAt",System.currentTimeMillis()).put("overdueCheckDay",LocalDate.now().minusDays(1).toString()).put("tasks",new JSONArray().put(new JSONObject().put("id","a").put("title","Дело").put("date",date).put("project","").put("done",false).put("reminder",0)));
     }
     @Test public void todaysTaskSchedulesMidnightEvenWithAutoSelectionDisabled() throws Exception {
         Context c=RuntimeEnvironment.getApplication();JSONObject s=state(LocalDate.now().toString());Alarms.sync(c,s);

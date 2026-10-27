@@ -4,7 +4,7 @@
   const rankNames = ['Первый шаг','Искра','Росток','Наблюдатель','Искатель','Ученик','Практик','Следопыт','Собиратель','Проводник','Ремесленник','Созидатель','Навигатор','Знаток','Стратег','Хранитель ритма','Исследователь','Архитектор дня','Мастер привычек','Алхимик','Покоритель вершин','Капитан','Виртуоз','Наставник','Хранитель времени','Мастер фокуса','Первооткрыватель','Маэстро','Зодчий','Мудрец','Вдохновитель','Повелитель ритма','Картограф','Хранитель баланса','Грандмастер','Покоритель горизонтов','Творец порядка','Светоч','Пилигрим','Хранитель огня','Архитектор перемен','Астральный странник','Мастер пути','Проводник света','Созвездие','Хранитель рассвета','Творец миров','Повелитель времени','Легенда','Северная звезда','Оракул','Хранитель вселенной','Бесконечный горизонт','Источник вдохновения','Вечный двигатель','Сверхновая','Космический архитектор','Мастер бесконечности','За гранью возможного','Абсолют'];
   const uid = () => (root.crypto?.randomUUID?.() || Date.now().toString(36)+Math.random().toString(36).slice(2));
   const day = (ts=Date.now()) => { const d=new Date(ts); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-  const initial = () => ({schema:3,tasks:[],pool:[],tags:[],projects:[],xp:0,theme:'sage',intervalHours:8,auto:true,lastRotation:0,overdueCheckDay:day()});
+  const initial = () => ({schema:3,queueClockStartedAt:Date.now(),tasks:[],pool:[],tags:[],projects:[],xp:0,theme:'sage',intervalHours:8,auto:true,lastRotation:0,overdueCheckDay:day()});
   function validDay(value) {
     if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
     const d=new Date(value+'T12:00:00');
@@ -19,7 +19,7 @@
     while(pending.length){const p=pending.pop();if(seen.has(p))continue;seen.add(p);p.cooldownHours=0;if(p.taskBackup?.requestBackup)pending.push(p.taskBackup.requestBackup);}
   }
   function migrate(s,now=Date.now()) {
-    if(s.schema<3){s.schema=3;s.overdueCheckDay=day(now);s.lastRotation=now;}
+    if(s.schema<3||s.queueClockStartedAt===undefined){s.schema=3;s.overdueCheckDay=day(now);s.lastRotation=now;if(s.queueClockStartedAt===undefined)s.queueClockStartedAt=now;}
     normalizeCooldowns(s);
     return s;
   }
@@ -32,7 +32,7 @@
     const origin=s.pool.find(p=>p.id===t.source)||t.requestBackup;
     return t.overdueDate||origin?.overdueDate||origin?.taskBackup?.overdueDate||(origin&&isOverdueRequest(s,origin)?origin.taskBackup?.date||(origin.lastSelected?day(origin.lastSelected):today):'')||(!t.done&&isDated(t)&&t.date<today?t.date:'');
   }
-  function queueTask(s,t,overdueDate,resetSelection=false) {
+  function queueTask(s,t,overdueDate,resetSelection=false,now=Date.now()) {
     let p=s.pool.find(p=>p.id===t.source&&(!p.taskBackup||p.taskBackup.id===t.id));
     if(!p){
       const original=t.requestBackup;
@@ -40,7 +40,7 @@
       s.pool.push(p);
     }
     const backup=JSON.parse(JSON.stringify(t));delete backup.requestBackup;delete backup.manualRequest;
-    p.title=t.title;p.taskBackup=backup;p.cooldownHours=0;
+    p.title=t.title;p.taskBackup=backup;p.cooldownHours=0;p.queuedAt=now;
     if(overdueDate){
       let tag=s.tags.find(t=>t.name.trim().toLowerCase()==='просроченные');
       if(!tag){tag={id:uid(),name:'просроченные',hours:0};s.tags.push(tag);}
@@ -52,7 +52,7 @@
   function moveOverdue(s,now=Date.now()) {
     const today=day(now);if(s.overdueCheckDay===today)return 0;s.overdueCheckDay=today;
     const overdue=s.tasks.filter(t=>!t.done&&isDated(t)&&t.date<today);
-    for(const t of overdue)queueTask(s,t,taskOverdueDate(s,t,today));
+    for(const t of overdue)queueTask(s,t,taskOverdueDate(s,t,today),false,now);
     if(!overdue.length)return 0;
     const moved=new Set(overdue.map(t=>t.id));s.tasks=s.tasks.filter(t=>!moved.has(t.id));
     s.lastRotation=now;
@@ -61,7 +61,7 @@
   function returnToRequests(s,id,now=Date.now()) {
     const t=s.tasks.find(t=>t.id===id);if(!t)throw Error('Дело уже перенесено или удалено');
     if(t.done)throw Error('Сначала отмените выполнение дела');
-    const p=queueTask(s,t,taskOverdueDate(s,t,day(now)),true);
+    const p=queueTask(s,t,taskOverdueDate(s,t,day(now)),true,now);
     s.tasks=s.tasks.filter(t=>t.id!==id);s.lastRotation=now;
     return p;
   }
@@ -92,9 +92,20 @@
     return {kind,eligible:kind==='ready',availableAt,remainingMs:Math.max(0,availableAt-now),cooldownMillis,task};
   }
   function eligible(s,p,now=Date.now()) { return availability(s,p,now).eligible; }
+  function queuedSince(s,p,now=Date.now()){return p.queuedAt??s.queueClockStartedAt??now;}
+  function selectionStats(s,now=Date.now()) {
+    const stats=Object.create(null);let total=0;
+    for(const p of s.pool){
+      const queuedAt=queuedSince(s,p,now),weight=eligible(s,p,now)?Math.max(1,now-queuedAt):0;
+      stats[p.id]={queuedAt,weight,probability:0,estimated:p.queuedAt===undefined};total+=weight;
+    }
+    if(total)for(const item of Object.values(stats))item.probability=item.weight/total;
+    return stats;
+  }
   function select(s,now=Date.now(),random=Math.random) {
-    const available=s.pool.filter(p=>eligible(s,p,now)); if(!available.length) return null;
-    const p=available[Math.min(available.length-1,Math.floor(random()*available.length))];
+    const stats=selectionStats(s,now),available=s.pool.filter(p=>stats[p.id].weight>0);if(!available.length)return null;
+    let ticket=random()*available.reduce((sum,p)=>sum+stats[p.id].weight,0),p=available[available.length-1];
+    for(const candidate of available){ticket-=stats[candidate.id].weight;if(ticket<0){p=candidate;break;}}
     const t=p.taskBackup?JSON.parse(JSON.stringify(p.taskBackup)):{id:uid(),rewarded:false};
     if(p.overdueDate)t.overdueDate=p.overdueDate;
     delete t.requestBackup;delete t.manualRequest;
@@ -162,6 +173,7 @@
     const requests=[...s.pool,...s.tasks.filter(t=>t.requestBackup).map(t=>t.requestBackup)];
     for(const p of requests) if(typeof p.id!=='string'||!/^[\w-]{1,100}$/.test(p.id)||['rotation','day-rollover'].includes(p.id)||typeof p.title!=='string'||!p.title.trim()||p.title.length>300||!Array.isArray(p.tags)||p.tags.some(t=>typeof t!=='string')||typeof p.enabled!=='boolean'||!Number.isFinite(p.cooldownHours)||p.cooldownHours<0||p.cooldownHours>87600||!Number.isFinite(p.lastSelected)||p.lastSelected<0) throw Error('Некорректная просьба');
     for(const t of s.tasks) if(typeof t.done!=='boolean'||typeof t.project!=='string'||!validDay(t.date)||!Number.isFinite(t.reminder)||t.reminder<0||(t.scheduled!==undefined&&typeof t.scheduled!=='boolean')||(t.completedDate!==undefined&&!validDay(t.completedDate))||(t.requestBackup&&t.requestBackup.id!==t.source)) throw Error('Некорректная задача');
+    for(const ts of [s.queueClockStartedAt,...requests.map(p=>p.queuedAt)])if(ts!==undefined&&(!Number.isSafeInteger(ts)||ts<0||ts>8640000000000000))throw Error('Некорректная дата добавления в очередь');
     for(const p of requests) {
       if(p.overdueDate!==undefined&&!validDay(p.overdueDate))throw Error('Некорректная дата просроченной просьбы');
       const t=p.taskBackup;
@@ -180,6 +192,6 @@
     if(s.overdueCheckDay!==undefined&&!validDay(s.overdueCheckDay))throw Error('Некорректная дата обработки задач');
     return migrate(s,now);
   }
-  const API={HOUR,rankNames,uid,day,validDay,addDays,initial,migrate,prepareImport,isDated,isOverdueRequest,taskOverdueDate,moveOverdue,returnToRequests,reconcile,todayTasks,tasksOnDate,calendarCounts,calendarCells,threshold,rank,cooldown,availability,eligible,select,scheduleRequest,rotate,complete,validate};
+  const API={HOUR,rankNames,uid,day,validDay,addDays,initial,migrate,prepareImport,isDated,isOverdueRequest,taskOverdueDate,moveOverdue,returnToRequests,reconcile,todayTasks,tasksOnDate,calendarCounts,calendarCells,threshold,rank,cooldown,availability,eligible,queuedSince,selectionStats,select,scheduleRequest,rotate,complete,validate};
   if(typeof module!=='undefined') module.exports=API; else root.Model=API;
 })(typeof window!=='undefined'?window:globalThis);

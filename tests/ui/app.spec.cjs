@@ -105,7 +105,7 @@ test('reopening moves old project work; picking and completing it retains projec
   await page.getByRole('button',{name:'Выполнено · 1',exact:false}).click();await page.getByRole('button',{name:'Вернуть Купить краску',exact:true}).click();await expect(page.locator('#pool .pool-item')).toHaveCount(1);await expect(page.locator('#pool')).toContainText('#просроченные');
 });
 
-for(const version of ['1.0.0','1.1.0','1.2.0','1.3.0','1.4.0']){
+for(const version of ['1.0.0','1.1.0','1.2.0','1.3.0','1.4.0','1.5.0']){
   test(`JSON ${version}: restore keeps all lists intact, saves previous state and round trips export`,async({page})=>{
     const fixture=require(`../fixtures/backups/v${version}.json`);
     await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Дело до восстановления');await page.getByRole('button',{name:'Добавить дело · +5 XP'}).click();

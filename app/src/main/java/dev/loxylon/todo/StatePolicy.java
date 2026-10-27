@@ -14,8 +14,9 @@ final class StatePolicy {
     }
     static boolean upgrade(JSONObject s,long now,ZoneId zone) throws JSONException {
         int schema=s.getInt("schema");if(schema<1||schema>3)throw new JSONException("Неподдерживаемая версия данных");
-        if(schema==3)return false;
+        if(schema==3&&s.has("queueClockStartedAt"))return false;
         s.put("schema",3).put("overdueCheckDay",java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toString()).put("lastRotation",now);
+        if(!s.has("queueClockStartedAt"))s.put("queueClockStartedAt",now);
         normalizeCooldowns(s);
         return true;
     }
@@ -71,7 +72,7 @@ final class StatePolicy {
             JSONObject original=t.optJSONObject("requestBackup");
             String overdueDate=t.optString("overdueDate",request.optString("overdueDate",original==null?t.getString("date"):original.optString("overdueDate",t.getString("date"))));
             backup.put("overdueDate",overdueDate);
-            request.put("title",t.getString("title")).put("taskBackup",backup).put("overdueDate",overdueDate).put("enabled",false).put("cooldownHours",0);
+            request.put("title",t.getString("title")).put("taskBackup",backup).put("overdueDate",overdueDate).put("enabled",false).put("cooldownHours",0).put("queuedAt",now);
             JSONArray requestTags=request.getJSONArray("tags");boolean tagged=false;
             for(int j=0;j<requestTags.length();j++)if(requestTags.getString(j).equals(overdueTag.getString("id")))tagged=true;
             if(!tagged)requestTags.put(overdueTag.getString("id"));

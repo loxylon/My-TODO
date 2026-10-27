@@ -30,3 +30,5 @@ dialog.drawer{inset:0 auto 0 0;margin:0 auto 0 0;width:min(340px,calc(100vw - 36
 .return-request{flex-shrink:0;min-width:32px;min-height:44px;padding:4px;color:var(--muted);font-size:21px;border-radius:9px}
 .return-request:active{background:var(--raised)}
 #addTask{margin:0 0 16px}.sheet-actions{gap:16px;flex-wrap:wrap}
+
+.request-selection{display:flex;flex-direction:column;gap:3px;margin-top:8px;color:var(--muted);font-size:10px;line-height:1.65;overflow-wrap:anywhere}.request-selection>span:last-child{color:var(--accent)}

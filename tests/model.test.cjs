@@ -26,7 +26,7 @@ test('all 60 ranks have increasing thresholds and last rank is bounded',()=>{
   assert.equal(M.rankNames.length,60);for(let i=1;i<60;i++)assert.ok(M.threshold(i)>M.threshold(i-1));assert.equal(M.rank(99).index,0);assert.equal(M.rank(100).index,1);assert.equal(M.rank(1e8).index,59);assert.equal(M.rank(1e8).next,null);
 });
 test('backup validation rejects malformed and unsafe state',()=>{
-  assert.deepEqual(M.validate(M.initial()),M.initial());for(const bad of [null,{}, {...M.initial(),xp:-1},{...M.initial(),intervalHours:0},{...M.initial(),pool:[pool('../unsafe')]}])assert.throws(()=>M.validate(bad));
+  const initial=M.initial();assert.deepEqual(M.validate(structuredClone(initial)),initial);for(const bad of [null,{}, {...M.initial(),xp:-1},{...M.initial(),intervalHours:0},{...M.initial(),pool:[pool('../unsafe')]}])assert.throws(()=>M.validate(bad));
 });
 test('excluded status survives JSON round trip with tag membership',()=>{
   const s=M.initial();s.tags=[{id:'home',name:'дом',hours:72}];s.pool=[pool('plant',{enabled:false,tags:['home']})];const copy=M.validate(JSON.parse(JSON.stringify(s)));assert.equal(copy.pool[0].enabled,false);assert.deepEqual(copy.pool[0].tags,['home']);

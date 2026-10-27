@@ -8,7 +8,7 @@ import java.util.*;
 final class Store {
     private static JSONObject load(Context c) throws JSONException {
         String raw = c.getSharedPreferences("todo", 0).getString("state", "");
-        return raw.isEmpty() ? new JSONObject("{\"schema\":3,\"tasks\":[],\"pool\":[],\"tags\":[],\"projects\":[],\"xp\":0,\"theme\":\"sage\",\"intervalHours\":8,\"auto\":true,\"lastRotation\":0}").put("overdueCheckDay",LocalDate.now().toString()) : new JSONObject(raw);
+        return raw.isEmpty() ? new JSONObject("{\"schema\":3,\"tasks\":[],\"pool\":[],\"tags\":[],\"projects\":[],\"xp\":0,\"theme\":\"sage\",\"intervalHours\":8,\"auto\":true,\"lastRotation\":0}").put("overdueCheckDay",LocalDate.now().toString()).put("queueClockStartedAt",System.currentTimeMillis()) : new JSONObject(raw);
     }
     static synchronized JSONObject read(Context c) throws JSONException {
         JSONObject s=load(c);
@@ -45,7 +45,7 @@ final class Store {
                 if ((!t.optBoolean("done") && p.getString("id").equals(t.optString("source")))||(backup!=null&&t.getString("id").equals(backup.getString("id")))) { pending = true; break; }
             }
             double hours=StatePolicy.cooldownHours(s,p);
-            candidates.add(new PoolPicker.Candidate(p.optBoolean("enabled", true), pending, p.optLong("lastSelected"), (long)(hours*3600000)));
+            candidates.add(new PoolPicker.Candidate(p.optBoolean("enabled", true), pending, p.optLong("lastSelected"), (long)(hours*3600000),p.optLong("queuedAt",s.optLong("queueClockStartedAt",now))));
         }
         int pick = PoolPicker.choose(candidates, now, new Random());
         if (pick >= 0) {

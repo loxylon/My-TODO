@@ -34,7 +34,7 @@ public class BackupCompatibilityTest {
     }
     @Test public void restoringAnyReleasedJsonSavesThePreviousDataAndDoesNotImmediatelyMoveImportedTasks() throws Exception {
         Context c=RuntimeEnvironment.getApplication();
-        for(String version:new String[]{"1.0.0","1.1.0","1.2.0","1.3.0","1.4.0"}){
+        for(String version:new String[]{"1.0.0","1.1.0","1.2.0","1.3.0","1.4.0","1.5.0"}){
             String previous=fixture("1.2.0");c.getSharedPreferences("todo",0).edit().clear().putString("state",previous).commit();
             JSONObject imported=new JSONObject(fixture(version));StatePolicy.prepareImport(imported,System.currentTimeMillis(),ZoneId.systemDefault());
             JSONObject expected=new JSONObject(imported.toString());Store.write(c,imported,"beforeImport");
@@ -53,10 +53,11 @@ public class BackupCompatibilityTest {
         long now=Instant.parse("2026-10-21T12:00:00Z").toEpochMilli();ZoneId zone=ZoneId.of("UTC");StatePolicy.upgrade(s,now,zone);
         assertEquals(0,StatePolicy.moveOverdue(s,now,zone));assertTrue(StatePolicy.moveOverdue(s,now+24*3600000L,zone)>0);
     }
-    @Test public void installedVersion14RetainsEveryRecordAndRepeatLinkWithoutRewritingTheDatabase() throws Exception {
+    @Test public void installedVersion14RetainsEveryRecordAndRepeatLinkAndSavesOriginalBeforeAddingQueueClock() throws Exception {
         Context c=RuntimeEnvironment.getApplication();String raw=fixture("1.4.0");c.getSharedPreferences("todo",0).edit().clear().putString("state",raw).commit();
-        JSONObject expected=new JSONObject(raw);sameRecords(expected,Store.read(c));assertEquals(raw,c.getSharedPreferences("todo",0).getString("state",""));
-        assertFalse(c.getSharedPreferences("todo",0).contains("beforeMigration"));
+        JSONObject expected=new JSONObject(raw);JSONObject updated=Store.read(c);sameRecords(expected,updated);assertTrue(updated.has("queueClockStartedAt"));
+        assertEquals(raw,c.getSharedPreferences("todo",0).getString("beforeMigration",""));
+        String stored=c.getSharedPreferences("todo",0).getString("state","");Store.read(c);assertEquals(stored,c.getSharedPreferences("todo",0).getString("state",""));
     }
 
 }
