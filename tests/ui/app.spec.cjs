@@ -100,12 +100,12 @@ test('midnight moves unfinished dated tasks into requests with one overdue tag a
 test('reopening moves old project work; picking and completing it retains project and request completion behavior',async({page})=>{
   await page.evaluate(()=>{const s=Model.initial();s.overdueCheckDay='2026-10-20';s.auto=false;s.projects=[{id:'repair',name:'Ремонт'}];s.tasks=[{id:'project-task',title:'Купить краску',date:'2026-10-20',project:'repair',scheduled:true,done:false,rewarded:false,reminder:0}];localStorage.setItem('mytodo',JSON.stringify(s));});await page.reload();
   await expect(page.locator('#tasks .task')).toHaveCount(0);await expect(page.locator('#pool')).toContainText('#просроченные');await expect(page.locator('#pool')).toContainText('Купить краску');
-  await page.getByRole('button',{name:'Выбрать одну сейчас',exact:false}).click();await expect(page.locator('#tasks')).toContainText('Купить краску');await expect(page.locator('#tasks')).toContainText('Ремонт');
-  await page.getByRole('button',{name:'Выполнить Купить краску',exact:true}).click();await expect(page.locator('#pool .pool-item')).toHaveCount(0);await expect(page.locator('#footerRank')).toContainText('20 XP');
+  await page.locator('[data-pool]').first().click();await page.getByRole('switch',{name:'Участвует в выборе'}).click();await page.getByRole('button',{name:'Сохранить',exact:true}).click();await page.getByRole('button',{name:'Выбрать одну сейчас',exact:false}).click();await expect(page.locator('#tasks')).toContainText('Купить краску');await expect(page.locator('#tasks')).toContainText('Ремонт');
+  await page.getByRole('button',{name:'Выполнить Купить краску',exact:true}).click();await expect(page.locator('#pool .pool-item')).toHaveCount(0);await expect(page.locator('#footerRank')).toContainText('22 XP');
   await page.getByRole('button',{name:'Выполнено · 1',exact:false}).click();await page.getByRole('button',{name:'Вернуть Купить краску',exact:true}).click();await expect(page.locator('#pool .pool-item')).toHaveCount(1);await expect(page.locator('#pool')).toContainText('#просроченные');
 });
 
-for(const version of ['1.0.0','1.1.0','1.2.0','1.3.0']){
+for(const version of ['1.0.0','1.1.0','1.2.0','1.3.0','1.4.0']){
   test(`JSON ${version}: restore keeps all lists intact, saves previous state and round trips export`,async({page})=>{
     const fixture=require(`../fixtures/backups/v${version}.json`);
     await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Дело до восстановления');await page.getByRole('button',{name:'Добавить дело · +5 XP'}).click();
@@ -122,7 +122,7 @@ for(const version of ['1.0.0','1.1.0','1.2.0','1.3.0']){
     expect(exported.tasks).toEqual(restored.tasks);expect(exported.pool).toEqual(restored.pool);
     await page.getByRole('button',{name:'Закрыть',exact:true}).click();await page.evaluate(data=>receiveBackup(JSON.stringify(data)),exported);await page.getByRole('button',{name:'Подтвердить',exact:true}).click();expect((await page.evaluate(()=>JSON.parse(localStorage.getItem('mytodo')))).tasks).toEqual(restored.tasks);
   });
-  if(version!=='1.3.0')test(`upgrading installed ${version} data leaves overdue tasks in place and keeps original safety copy`,async({page})=>{
+  if(['1.0.0','1.1.0','1.2.0'].includes(version))test(`upgrading installed ${version} data leaves overdue tasks in place and keeps original safety copy`,async({page})=>{
     const fixture=require(`../fixtures/backups/v${version}.json`),raw=JSON.stringify(fixture);await page.evaluate(raw=>localStorage.setItem('mytodo',raw),raw);await page.reload();
     const state=await page.evaluate(()=>JSON.parse(localStorage.getItem('mytodo')));expect(state.tasks.map(t=>t.id)).toEqual(fixture.tasks.map(t=>t.id));expect(state.pool.map(p=>p.id)).toEqual(fixture.pool.map(p=>p.id));expect(await page.evaluate(()=>backupSource('beforeMigration'))).toBe(raw);
     await page.reload();expect(await page.evaluate(()=>backupSource('beforeMigration'))).toBe(raw);

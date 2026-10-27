@@ -41,4 +41,11 @@ public class OverdueSchedulerTest {
         JSONObject reconciled=Store.reconcile(c);assertEquals(1,reconciled.getJSONArray("tasks").length());assertEquals(0,reconciled.getJSONArray("pool").length());assertEquals(3,reconciled.getJSONArray("tasks").getJSONObject(0).getInt("repeatDays"));assertEquals(reminder,reconciled.getJSONArray("tasks").getJSONObject(0).getLong("reminder"));
     }
 
+    @Test public void overdueTasksRemainExcludedAfterTheNextBackgroundSelectionTick() throws Exception {
+        Context c=RuntimeEnvironment.getApplication();JSONObject s=state(LocalDate.now().minusDays(1).toString()).put("auto",true);Store.write(c,s);
+        JSONObject moved=Store.reconcile(c);assertEquals(0,moved.getJSONArray("tasks").length());assertFalse(moved.getJSONArray("pool").getJSONObject(0).getBoolean("enabled"));
+        moved.put("lastRotation",0);Store.write(c,moved);JSONObject next=Store.reconcile(c);
+        assertEquals(0,next.getJSONArray("tasks").length());assertEquals(1,next.getJSONArray("pool").length());assertFalse(next.getJSONArray("pool").getJSONObject(0).getBoolean("enabled"));
+    }
+
 }

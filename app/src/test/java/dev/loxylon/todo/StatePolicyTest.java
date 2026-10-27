@@ -56,13 +56,14 @@ public class StatePolicyTest {
         assertEquals(3,StatePolicy.moveOverdue(s,now,ZoneId.of("UTC")));
         assertEquals(4,s.getJSONArray("tasks").length());assertEquals(3,s.getJSONArray("pool").length());assertEquals(40,s.getInt("xp"));
         JSONArray tags=s.getJSONArray("tags");assertEquals(2,tags.length());assertEquals("просроченные",tags.getJSONObject(1).getString("name"));assertEquals(0,tags.getJSONObject(1).getInt("hours"));
-        JSONObject existing=s.getJSONArray("pool").getJSONObject(0);assertFalse(existing.getBoolean("enabled"));assertEquals(24,existing.getInt("cooldownHours"));assertEquals(2,existing.getJSONArray("tags").length());
+        JSONObject existing=s.getJSONArray("pool").getJSONObject(0);assertFalse(existing.getBoolean("enabled"));assertEquals(0,existing.getInt("cooldownHours"));assertEquals(2,existing.getJSONArray("tags").length());
+        for(int i=0;i<s.getJSONArray("pool").length();i++)assertFalse(s.getJSONArray("pool").getJSONObject(i).getBoolean("enabled"));
         assertEquals(0,StatePolicy.moveOverdue(s,now,ZoneId.of("UTC")));assertEquals(3,s.getJSONArray("pool").length());
     }
     @Test public void nativeSelectionRestoresProjectAndIdentityWithoutRevivingExpiredReminders() throws Exception {
         JSONObject s=overdueState();long now=Instant.parse("2026-10-22T12:00:00Z").toEpochMilli();ZoneId zone=ZoneId.of("UTC");StatePolicy.moveOverdue(s,now,zone);
         JSONObject request=s.getJSONArray("pool").getJSONObject(2),t=StatePolicy.taskFromRequest(s,request,now,zone);
-        assertEquals("old-project",t.getString("id"));assertEquals("repair",t.getString("project"));assertEquals("2026-10-22",t.getString("date"));assertEquals(0,t.getLong("reminder"));assertTrue(t.getBoolean("rewarded"));assertTrue(t.getBoolean("scheduled"));
+        assertEquals("2026-10-21",t.getString("overdueDate"));assertEquals("old-project",t.getString("id"));assertEquals("repair",t.getString("project"));assertEquals("2026-10-22",t.getString("date"));assertEquals(0,t.getLong("reminder"));assertTrue(t.getBoolean("rewarded"));assertTrue(t.getBoolean("scheduled"));
         s.put("projects",new JSONArray());assertEquals("",StatePolicy.taskFromRequest(s,request,now,zone).getString("project"));
     }
     @Test public void overdueBoundaryFollowsPhoneTimezone() throws Exception {
@@ -77,6 +78,16 @@ public class StatePolicyTest {
         JSONObject found=null;JSONArray pool=s.getJSONArray("pool");for(int i=0;i<pool.length();i++)if(pool.getJSONObject(i).getString("id").equals("manual-origin"))found=pool.getJSONObject(i);
         assertNotNull(found);assertFalse(found.getBoolean("enabled"));assertEquals("home",found.getJSONArray("tags").getString(0));assertEquals(2,found.getJSONArray("tags").length());
         JSONObject selected=StatePolicy.taskFromRequest(s,found,now,zone);assertEquals(3,selected.getInt("repeatDays"));assertEquals(0,selected.getInt("repeatIndex"));assertFalse(selected.has("manualRequest"));assertFalse(selected.has("requestBackup"));
+    }
+
+    @Test public void repeatingOverdueTransferKeepsOriginalLateDateAndDisablesSelectionAgain() throws Exception {
+        JSONObject s=overdueState();JSONObject t=s.getJSONArray("tasks").getJSONObject(0);t.put("overdueDate","2026-10-18").put("repeatDays",7);
+        long now=Instant.parse("2026-10-22T12:00:00Z").toEpochMilli();ZoneId zone=ZoneId.of("UTC");StatePolicy.moveOverdue(s,now,zone);
+        JSONObject found=null;JSONArray pool=s.getJSONArray("pool");for(int i=0;i<pool.length();i++)if(pool.getJSONObject(i).getJSONObject("taskBackup").getString("id").equals(t.getString("id")))found=pool.getJSONObject(i);
+        assertNotNull(found);assertFalse(found.getBoolean("enabled"));assertEquals("2026-10-18",found.getString("overdueDate"));
+        JSONObject selected=StatePolicy.taskFromRequest(s,found,now,zone);assertEquals("2026-10-18",selected.getString("overdueDate"));assertEquals(7,selected.getInt("repeatDays"));
+        found.put("enabled",true);s.put("tasks",new JSONArray().put(selected));StatePolicy.moveOverdue(s,now+24*3600000L,zone);
+        assertFalse(found.getBoolean("enabled"));assertEquals("2026-10-18",found.getString("overdueDate"));assertFalse(found.getJSONObject("taskBackup").has("requestBackup"));
     }
 
 }

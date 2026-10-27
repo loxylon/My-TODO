@@ -67,7 +67,11 @@ final class StatePolicy {
                 request=original==null?new JSONObject().put("id",UUID.randomUUID().toString()).put("tags",new JSONArray()).put("cooldownHours",0).put("enabled",true).put("lastSelected",0):new JSONObject(original.toString());pool.put(request);
             }
             JSONObject backup=new JSONObject(t.toString());backup.remove("requestBackup");
-            request.put("title",t.getString("title")).put("taskBackup",backup).put("overdueDate",t.getString("date"));
+            backup.remove("manualRequest");
+            JSONObject original=t.optJSONObject("requestBackup");
+            String overdueDate=t.optString("overdueDate",request.optString("overdueDate",original==null?t.getString("date"):original.optString("overdueDate",t.getString("date"))));
+            backup.put("overdueDate",overdueDate);
+            request.put("title",t.getString("title")).put("taskBackup",backup).put("overdueDate",overdueDate).put("enabled",false).put("cooldownHours",0);
             JSONArray requestTags=request.getJSONArray("tags");boolean tagged=false;
             for(int j=0;j<requestTags.length();j++)if(requestTags.getString(j).equals(overdueTag.getString("id")))tagged=true;
             if(!tagged)requestTags.put(overdueTag.getString("id"));
@@ -79,6 +83,7 @@ final class StatePolicy {
     static JSONObject taskFromRequest(JSONObject s,JSONObject p,long now,ZoneId zone) throws JSONException {
         JSONObject backup=p.optJSONObject("taskBackup"),t=backup==null?new JSONObject().put("id",UUID.randomUUID().toString()).put("rewarded",false):new JSONObject(backup.toString());
         t.remove("requestBackup");t.remove("manualRequest");
+        if(p.has("overdueDate"))t.put("overdueDate",p.getString("overdueDate"));
         String project=t.optString("project");boolean projectExists=false;JSONArray projects=s.getJSONArray("projects");
         for(int i=0;i<projects.length();i++)if(projects.getJSONObject(i).getString("id").equals(project))projectExists=true;
         t.put("title",p.getString("title")).put("date",java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toString()).put("project",projectExists?project:"").put("source",p.getString("id")).put("done",false).put("reminder",t.optLong("reminder")>now?t.optLong("reminder"):0).put("notified",false);

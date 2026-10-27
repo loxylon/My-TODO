@@ -7,7 +7,7 @@ const request=(extra={})=>({id:'request',title:'Забрать книгу',tags:
 function state(){const s=M.initial();s.auto=false;s.overdueCheckDay=M.day(now);return s;}
 test('manual request scheduling ignores auto exclusions/cooldown, removes request and uses selected date',()=>{
   const s=state();s.tags=[{id:'tag',name:'дом',hours:24}];s.pool=[request({enabled:false,tags:['tag'],lastSelected:now})];
-  const t=M.scheduleRequest(s,'request','2026-11-02',now);assert.equal(t.date,'2026-11-02');assert.equal(s.pool.length,0);assert.equal(s.tasks.length,1);assert.equal(t.source,'request');assert.equal(t.requestBackup.enabled,false);assert.deepEqual(t.requestBackup.tags,['tag']);assert.equal(s.xp,0);assert.equal(M.todayTasks(s,'2026-11-01').length,0);assert.equal(M.todayTasks(s,'2026-11-02').length,1);assert.equal(M.calendarCounts(s)['2026-11-02'],1);
+  const t=M.scheduleRequest(s,'request','2026-11-02',now);assert.equal(t.date,'2026-11-02');assert.equal(s.pool.length,0);assert.equal(s.tasks.length,1);assert.equal(t.source,'request');assert.equal(t.requestBackup.enabled,false);assert.deepEqual(t.requestBackup.tags,['tag']);assert.equal(s.xp,0);assert.equal(M.todayTasks(s,'2026-11-01').length,0);assert.equal(M.todayTasks(s,'2026-11-02').length,1);assert.equal(M.calendarCounts(s,'2026-10-21')['2026-11-02'],1);
   M.complete(s,t.id,now);M.complete(s,t.id,now);assert.equal(s.pool.length,0,'undo completion keeps a manual task out of the request queue');assert.equal(s.xp,20);
 });
 test('manual rescheduling moves the already selected task without duplicating identity project or reward',()=>{
