@@ -8,10 +8,13 @@ import java.util.Random;
 public final class PoolPicker {
     public static final class Candidate {
         public final boolean enabled, pending;
-        public final long lastSelected, cooldownMillis, queuedAt;
+        public final long lastSelected, cooldownMillis, queuedAt, availableAt;
         public Candidate(boolean enabled, boolean pending, long lastSelected, long cooldownMillis, long queuedAt) {
+            this(enabled,pending,lastSelected,cooldownMillis,queuedAt,-1);
+        }
+        public Candidate(boolean enabled, boolean pending, long lastSelected, long cooldownMillis, long queuedAt, long availableAt) {
             this.enabled = enabled; this.pending = pending;
-            this.lastSelected = lastSelected; this.cooldownMillis = cooldownMillis; this.queuedAt = queuedAt;
+            this.lastSelected = lastSelected; this.cooldownMillis = cooldownMillis; this.queuedAt = queuedAt;this.availableAt=availableAt;
         }
     }
     public static int choose(List<Candidate> candidates, long now, Random random) {
@@ -19,7 +22,7 @@ public final class PoolPicker {
         List<Double> weights = new ArrayList<>(); double total = 0;
         for (int i = 0; i < candidates.size(); i++) {
             Candidate c = candidates.get(i);
-            if (c.enabled && !c.pending && (c.cooldownMillis <= 0 || c.lastSelected == 0 || now - c.lastSelected >= c.cooldownMillis)) {
+            if (c.enabled && !c.pending && (c.availableAt>=0?now>=c.availableAt:(c.cooldownMillis <= 0 || c.lastSelected == 0 || now - c.lastSelected >= c.cooldownMillis))) {
                 double weight = Math.max(1d, (double) now - c.queuedAt);
                 eligible.add(i); weights.add(weight); total += weight;
             }

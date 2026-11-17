@@ -3,9 +3,9 @@ const assert=require('node:assert/strict');
 const M=require('../app/src/main/assets/model.js');
 const pool=(id,extra={})=>({id,title:id,tags:[],cooldownHours:24,enabled:true,lastSelected:0,...extra});
 test('first selection, cooldown boundary, and random choice among eligible only',()=>{
-  const s=M.initial(),now=100*M.HOUR;s.tags=[{id:'daily',name:'daily',hours:24}];s.pool=[pool('disabled',{enabled:false}),pool('cooling',{tags:['daily'],lastSelected:now-23*M.HOUR}),pool('available'),pool('also-available')];
+  const s=M.initial(),now=100*M.HOUR;s.tags=[{id:'daily',name:'daily',hours:24}];s.tagLastSelected.daily=now-23*M.HOUR;s.pool=[pool('disabled',{enabled:false}),pool('cooling',{tags:['daily'],lastSelected:now-23*M.HOUR}),pool('available'),pool('also-available')];
   assert.equal(M.select(s,now,()=>.99).source,'also-available');assert.equal(s.pool[3].lastSelected,now);assert.equal(s.tasks[0].date,M.day(now));
-  assert.equal(M.eligible(s,s.pool[1],now),false);assert.equal(M.eligible(s,s.pool[1],now+M.HOUR),true);
+  assert.equal(M.eligible(s,s.pool[1],now),false);assert.equal(M.eligible(s,s.pool[1],now+M.HOUR),true);assert.equal(M.eligible(s,s.pool[2],now+M.HOUR),false);
 });
 test('only tags determine cooldown and legacy per-request cooldown is ignored',()=>{
   const s=M.initial();s.tags=[{id:'a',name:'a',hours:48},{id:'b',name:'b',hours:72}];const p=pool('one',{tags:['a','b'],cooldownHours:0});assert.equal(M.cooldown(s,p),72*M.HOUR);p.cooldownHours=96;assert.equal(M.cooldown(s,p),72*M.HOUR);
@@ -20,7 +20,7 @@ test('disabled automation and excluded items are never chosen automatically',()=
   const s=M.initial();s.pool=[pool('a',{enabled:false})];assert.equal(M.rotate(s,100*M.HOUR),null);s.pool[0].enabled=true;s.auto=false;assert.equal(M.rotate(s,200*M.HOUR),null);assert.equal(s.tasks.length,0);
 });
 test('completion rewards only once across repeated check/uncheck and persistence',()=>{
-  const s=M.initial();s.pool=[pool('a')];const t=M.select(s,100*M.HOUR);assert.equal(M.complete(s,t.id),20);assert.equal(M.complete(s,t.id),0);const restored=M.validate(JSON.parse(JSON.stringify(s)));assert.equal(M.complete(restored,t.id),0);assert.equal(restored.xp,20);
+  const s=M.initial();s.pool=[pool('a')];const t=M.select(s,100*M.HOUR);assert.equal(M.complete(s,t.id),8);assert.equal(M.complete(s,t.id),0);const restored=M.validate(JSON.parse(JSON.stringify(s)));assert.equal(M.complete(restored,t.id),0);assert.equal(restored.xp,8);
 });
 test('all 60 ranks have increasing thresholds and last rank is bounded',()=>{
   assert.equal(M.rankNames.length,60);for(let i=1;i<60;i++)assert.ok(M.threshold(i)>M.threshold(i-1));assert.equal(M.rank(99).index,0);assert.equal(M.rank(100).index,1);assert.equal(M.rank(1e8).index,59);assert.equal(M.rank(1e8).next,null);
@@ -33,7 +33,7 @@ test('excluded status survives JSON round trip with tag membership',()=>{
 });
 test('undo completion restores request metadata without farming XP or duplicating it',()=>{
   const s=M.initial();s.tags=[{id:'home',name:'дом',hours:72}];s.pool=[pool('one',{tags:['home']})];const t=M.select(s,100*M.HOUR);M.complete(s,t.id);
-  assert.equal(s.pool.length,0);const copy=M.validate(JSON.parse(JSON.stringify(s)));M.complete(copy,t.id);assert.equal(copy.pool.length,1);assert.deepEqual(copy.pool[0].tags,['home']);assert.equal(M.eligible(copy,copy.pool[0],200*M.HOUR),false);M.complete(copy,t.id);assert.equal(copy.pool.length,0);assert.equal(copy.xp,20);
+  assert.equal(s.pool.length,0);const copy=M.validate(JSON.parse(JSON.stringify(s)));M.complete(copy,t.id);assert.equal(copy.pool.length,1);assert.deepEqual(copy.pool[0].tags,['home']);assert.equal(M.eligible(copy,copy.pool[0],200*M.HOUR),false);M.complete(copy,t.id);assert.equal(copy.pool.length,0);assert.equal(copy.xp,8);
 });
 test('version 1 backup migrates once while preserving tasks projects tags theme and experience',()=>{
   const fixture=require('./fixtures/v1-state.json'),s=M.validate(structuredClone(fixture));assert.equal(s.schema,3);assert.equal(s.xp,fixture.xp);assert.deepEqual(s.projects,fixture.projects);assert.deepEqual(s.tags,fixture.tags);assert.equal(s.theme,'paper');assert.equal(s.tasks.length,3);assert.deepEqual(s.pool.map(p=>p.id),['done-request','pending-request']);assert.deepEqual(s.tasks,fixture.tasks);assert.equal(M.isDated(s.tasks[2]),false);assert.deepEqual(M.validate(structuredClone(s)),s);

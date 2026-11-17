@@ -48,4 +48,14 @@ public class OverdueSchedulerTest {
         assertEquals(0,next.getJSONArray("tasks").length());assertEquals(1,next.getJSONArray("pool").length());assertFalse(next.getJSONArray("pool").getJSONObject(0).getBoolean("enabled"));
     }
 
+    @Test public void backgroundRotationPausesTheWholeTagAfterChoosingOneRequest() throws Exception {
+        Context c=RuntimeEnvironment.getApplication();long now=System.currentTimeMillis();
+        JSONObject s=new JSONObject("{\"schema\":3,\"tagCooldownVersion\":1,\"tagLastSelected\":{},\"untaggedLastSelected\":0,\"tasks\":[],\"pool\":[],\"tags\":[],\"projects\":[],\"auto\":true,\"lastRotation\":0,\"intervalHours\":8,\"xp\":0}");
+        s.put("queueClockStartedAt",now).put("overdueCheckDay",LocalDate.now().toString());
+        s.getJSONArray("tags").put(new JSONObject().put("id","home").put("name","дом").put("hours",24));
+        for(String id:new String[]{"first","second"})s.getJSONArray("pool").put(new JSONObject().put("id",id).put("title",id).put("tags",new JSONArray().put("home")).put("cooldownHours",0).put("enabled",true).put("lastSelected",0).put("queuedAt",now-3600000));
+        Store.write(c,s);JSONObject selected=Store.reconcile(c);assertEquals(1,selected.getJSONArray("tasks").length());assertTrue(selected.getJSONObject("tagLastSelected").getLong("home")>0);
+        selected.put("lastRotation",0);Store.write(c,selected);JSONObject again=Store.reconcile(c);assertEquals(1,again.getJSONArray("tasks").length());
+    }
+
 }

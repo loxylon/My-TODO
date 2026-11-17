@@ -3,21 +3,21 @@ test.beforeEach(async({page})=>{await page.clock.install({time:new Date('2026-10
 test('create, edit, complete and reload without losing XP or task data',async({page})=>{
   await page.getByRole('button',{name:'Добавить дело',exact:false}).click();
   await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Почитать 20 минут');
-  await page.getByRole('button',{name:'Добавить дело · +5 XP'}).click();
+  await page.getByRole('button',{name:'Добавить дело · +1 XP'}).click();
   await expect(page.locator('.task-title')).toHaveText('Почитать 20 минут');
   await page.getByRole('button',{name:'Выполнить Почитать 20 минут',exact:true}).click();
-  await expect(page.locator('#footerRank')).toContainText('25 XP');
+  await expect(page.locator('#footerRank')).toContainText('9 XP');
   await page.getByRole('button',{name:'Выполнено · 1',exact:false}).click();
   await page.getByRole('button',{name:'Вернуть Почитать 20 минут',exact:true}).click();
   await page.getByRole('button',{name:'Выполнить Почитать 20 минут',exact:true}).click();
-  await expect(page.locator('#footerRank')).toContainText('25 XP');
-  await page.reload();await expect(page.locator('#footerRank')).toContainText('25 XP');
+  await expect(page.locator('#footerRank')).toContainText('9 XP');
+  await page.reload();await expect(page.locator('#footerRank')).toContainText('9 XP');
 });
 test('project lists stay separate and can be renamed',async({page})=>{
   await page.getByRole('button',{name:'Открыть меню'}).click();await page.getByRole('button',{name:'Новый проект',exact:true}).click();
-  await page.getByLabel('НАЗВАНИЕ ПРОЕКТА').fill('Моя книга');await page.getByRole('button',{name:'Создать проект · +5 XP'}).click();
+  await page.getByLabel('НАЗВАНИЕ ПРОЕКТА').fill('Моя книга');await page.getByRole('button',{name:'Создать проект · +1 XP'}).click();
   await expect(page.locator('h1')).toHaveText('Моя книга.');
-  await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Написать главу');await page.getByRole('button',{name:'Добавить дело · +5 XP'}).click();
+  await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Написать главу');await page.getByRole('button',{name:'Добавить дело · +1 XP'}).click();
   await expect(page.locator('.task-title')).toHaveText('Написать главу');
   await page.getByRole('button',{name:'Действия с проектом'}).click();await page.getByLabel('НАЗВАНИЕ ПРОЕКТА').fill('Книга');await page.getByRole('button',{name:'Сохранить',exact:true}).click();
   await expect(page.locator('h1')).toHaveText('Книга.');
@@ -26,17 +26,17 @@ test('project lists stay separate and can be renamed',async({page})=>{
 test('request tags and exclusions persist; completion removes the request and undo restores it',async({page})=>{
   await page.getByRole('button',{name:'Настройки',exact:true}).click();await page.getByRole('button',{name:'Теги и правила cooldown'}).click();
   await page.getByRole('button',{name:'Создать тег'}).click();await page.getByLabel('НАЗВАНИЕ БЕЗ #').fill('здоровье');await page.getByLabel('COOLDOWN, ЧАСЫ',{exact:true}).fill('48');await page.getByRole('button',{name:'Сохранить тег'}).click();await page.getByRole('button',{name:'Закрыть',exact:true}).click();
-  await page.getByRole('button',{name:'Добавить просьбу'}).click();await page.getByLabel('НАЗВАНИЕ',{exact:true}).fill('Прогулка без телефона');await page.getByRole('button',{name:'#здоровье · КД 48 ч'}).click();await page.getByRole('button',{name:'Добавить просьбу · +5 XP'}).click();
-  await expect(page.locator('#pool')).toContainText('#здоровье');await expect(page.locator('#pool')).toContainText('КД по тегам: 48 ч');
-  await page.locator('[data-pool]').first().click();await page.getByRole('switch',{name:'Участвует в выборе'}).click();await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#pool')).toContainText('Исключена из выбора');
-  await page.reload();await expect(page.locator('#pool')).toContainText('Исключена из выбора');
+  await page.getByRole('button',{name:'Добавить просьбу'}).click();await page.getByLabel('НАЗВАНИЕ',{exact:true}).fill('Прогулка без телефона');await page.getByRole('button',{name:'#здоровье · 48 ч'}).click();await page.getByRole('button',{name:'Добавить просьбу · +1 XP'}).click();
+  await expect(page.locator('#pool')).toContainText('#здоровье');await expect(page.locator('#pool')).toContainText('КД группы 48 ч');
+  await page.locator('[data-pool]').first().click();await page.getByRole('switch',{name:'Участвует в выборе'}).click();await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#pool')).toContainText('Не участвует');
+  await page.reload();await expect(page.locator('#pool')).toContainText('Не участвует');
   await page.locator('[data-pool]').first().click();await page.getByRole('switch',{name:'Участвует в выборе'}).click();await page.getByRole('button',{name:'Сохранить',exact:true}).click();await page.getByRole('button',{name:'Выбрать одну сейчас',exact:false}).click();
   await expect(page.locator('#tasks .task-title')).toHaveText('Прогулка без телефона');await expect(page.locator('#pool')).toContainText('Уже в делах');
   await page.getByRole('button',{name:'Выполнить Прогулка без телефона',exact:true}).click();await expect(page.locator('#pool .pool-item')).toHaveCount(0);await page.reload();await expect(page.locator('#pool .pool-item')).toHaveCount(0);await page.getByRole('button',{name:'Выполнено · 1',exact:false}).click();await page.getByRole('button',{name:'Вернуть Прогулка без телефона',exact:true}).click();await expect(page.locator('#pool')).toContainText('Уже в делах');
 });
 test('themes, 60 ranks, reminder persistence and safe backup import',async({page})=>{
   await page.getByRole('button',{name:'Настройки',exact:true}).click();await page.getByRole('button',{name:'Paper',exact:true}).click();await page.getByRole('button',{name:'Закрыть',exact:true}).click();
-  await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('<img src=x onerror=alert(1)>');await page.getByLabel('НАПОМНИТЬ · НЕОБЯЗАТЕЛЬНО').fill('2030-10-21T15:30');await page.getByRole('button',{name:'Добавить дело · +5 XP'}).click();
+  await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('<img src=x onerror=alert(1)>');await page.getByLabel('НАПОМНИТЬ · НЕОБЯЗАТЕЛЬНО').fill('2030-10-21T15:30');await page.getByRole('button',{name:'Добавить дело · +1 XP'}).click();
   await expect(page.locator('.task-title')).toHaveText('<img src=x onerror=alert(1)>');await expect(page.locator('#tasks img')).toHaveCount(0);
   await page.reload();await expect(page.locator('.reminder')).toBeVisible();await expect(page.locator('html')).toHaveCSS('--bg','#f5f3ee');
   await page.getByRole('button',{name:'Опыт и ранги'}).click();await expect(page.locator('.rank-row')).toHaveCount(60);await page.getByRole('button',{name:'Закрыть',exact:true}).click();
@@ -55,7 +55,7 @@ test('left drawer calendar marks future tasks and opens the selected day; all ta
   await page.clock.setSystemTime(new Date('2026-10-24T23:59:45+03:00'));
   await page.reload();
   for(const title of ['Забрать заказ','Отправить документы']){
-    await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill(title);await page.getByLabel('ДАТА · НЕОБЯЗАТЕЛЬНО',{exact:true}).fill('2026-10-25');await page.getByRole('button',{name:'Добавить дело · +5 XP'}).click();
+    await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill(title);await page.getByLabel('ДАТА · НЕОБЯЗАТЕЛЬНО',{exact:true}).fill('2026-10-25');await page.getByRole('button',{name:'Добавить дело · +1 XP'}).click();
   }
   await expect(page.locator('#tasks .task')).toHaveCount(0);
   await page.getByRole('button',{name:'Открыть меню'}).click();
@@ -71,8 +71,8 @@ test('left drawer calendar marks future tasks and opens the selected day; all ta
 });
 
 test('dated project tasks arrive in today together and retain their project',async({page})=>{
-  await page.getByRole('button',{name:'Открыть меню'}).click();await page.getByRole('button',{name:'Новый проект',exact:true}).click();await page.getByLabel('НАЗВАНИЕ ПРОЕКТА').fill('Ремонт');await page.getByRole('button',{name:'Создать проект · +5 XP'}).click();
-  await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Купить краску');await page.getByLabel('ДАТА · НЕОБЯЗАТЕЛЬНО',{exact:true}).fill('2026-10-22');await page.getByRole('button',{name:'Добавить дело · +5 XP'}).click();
+  await page.getByRole('button',{name:'Открыть меню'}).click();await page.getByRole('button',{name:'Новый проект',exact:true}).click();await page.getByLabel('НАЗВАНИЕ ПРОЕКТА').fill('Ремонт');await page.getByRole('button',{name:'Создать проект · +1 XP'}).click();
+  await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Купить краску');await page.getByLabel('ДАТА · НЕОБЯЗАТЕЛЬНО',{exact:true}).fill('2026-10-22');await page.getByRole('button',{name:'Добавить дело · +1 XP'}).click();
   await expect(page.locator('#tasks')).toContainText('Купить краску');await page.getByRole('button',{name:'Открыть меню'}).click();await expect(page.locator('[data-date="2026-10-22"]')).toHaveAttribute('data-count','1');await page.locator('[data-screen=""]').click();await expect(page.locator('#tasks .task')).toHaveCount(0);
   await page.clock.setSystemTime(new Date('2026-10-22T10:00:00+03:00'));await page.reload();await expect(page.locator('#tasks')).toContainText('Купить краску');await expect(page.locator('#tasks')).toContainText('Ремонт');
   await page.getByRole('button',{name:'Открыть меню'}).click();await page.getByRole('button',{name:'▧ Ремонт 1'}).click();await expect(page.locator('#tasks .task')).toHaveCount(1);
@@ -80,7 +80,7 @@ test('dated project tasks arrive in today together and retain their project',asy
 
 test('calendar navigates across year boundaries and supports creating a task for the selected date',async({page})=>{
   await page.clock.setSystemTime(new Date('2026-12-21T10:00:00+03:00'));await page.reload();await page.getByRole('button',{name:'Открыть меню'}).click();await page.getByRole('button',{name:'Следующий месяц'}).click();await expect(page.locator('#currentMonth')).toContainText('январь 2027');
-  await page.locator('[data-date="2027-01-05"]').click();await page.locator('#addTask').click();await expect(page.getByLabel('ДАТА · НЕОБЯЗАТЕЛЬНО',{exact:true})).toHaveValue('2027-01-05');await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Проверить документы');await page.getByRole('button',{name:'Добавить дело · +5 XP'}).click();await expect(page.locator('#tasks .task')).toHaveCount(1);
+  await page.locator('[data-date="2027-01-05"]').click();await page.locator('#addTask').click();await expect(page.getByLabel('ДАТА · НЕОБЯЗАТЕЛЬНО',{exact:true})).toHaveValue('2027-01-05');await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Проверить документы');await page.getByRole('button',{name:'Добавить дело · +1 XP'}).click();await expect(page.locator('#tasks .task')).toHaveCount(1);
   await page.getByRole('button',{name:'Открыть меню'}).click();await expect(page.locator('[data-date="2027-01-05"]')).toHaveAttribute('data-count','1');await page.getByRole('button',{name:'Закрыть меню'}).click();await expect(page.locator('#navigation')).not.toBeVisible();
 });
 
@@ -101,14 +101,14 @@ test('reopening moves old project work; picking and completing it retains projec
   await page.evaluate(()=>{const s=Model.initial();s.overdueCheckDay='2026-10-20';s.auto=false;s.projects=[{id:'repair',name:'Ремонт'}];s.tasks=[{id:'project-task',title:'Купить краску',date:'2026-10-20',project:'repair',scheduled:true,done:false,rewarded:false,reminder:0}];localStorage.setItem('mytodo',JSON.stringify(s));});await page.reload();
   await expect(page.locator('#tasks .task')).toHaveCount(0);await expect(page.locator('#pool')).toContainText('#просроченные');await expect(page.locator('#pool')).toContainText('Купить краску');
   await page.locator('[data-pool]').first().click();await page.getByRole('switch',{name:'Участвует в выборе'}).click();await page.getByRole('button',{name:'Сохранить',exact:true}).click();await page.getByRole('button',{name:'Выбрать одну сейчас',exact:false}).click();await expect(page.locator('#tasks')).toContainText('Купить краску');await expect(page.locator('#tasks')).toContainText('Ремонт');
-  await page.getByRole('button',{name:'Выполнить Купить краску',exact:true}).click();await expect(page.locator('#pool .pool-item')).toHaveCount(0);await expect(page.locator('#footerRank')).toContainText('22 XP');
+  await page.getByRole('button',{name:'Выполнить Купить краску',exact:true}).click();await expect(page.locator('#pool .pool-item')).toHaveCount(0);await expect(page.locator('#footerRank')).toContainText('9 XP');
   await page.getByRole('button',{name:'Выполнено · 1',exact:false}).click();await page.getByRole('button',{name:'Вернуть Купить краску',exact:true}).click();await expect(page.locator('#pool .pool-item')).toHaveCount(1);await expect(page.locator('#pool')).toContainText('#просроченные');
 });
 
-for(const version of ['1.0.0','1.1.0','1.2.0','1.3.0','1.4.0','1.5.0']){
+for(const version of ['1.0.0','1.1.0','1.2.0','1.3.0','1.4.0','1.5.0','1.6.0']){
   test(`JSON ${version}: restore keeps all lists intact, saves previous state and round trips export`,async({page})=>{
     const fixture=require(`../fixtures/backups/v${version}.json`);
-    await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Дело до восстановления');await page.getByRole('button',{name:'Добавить дело · +5 XP'}).click();
+    await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Дело до восстановления');await page.getByRole('button',{name:'Добавить дело · +1 XP'}).click();
     const old=await page.evaluate(()=>localStorage.getItem('mytodo'));
     await page.evaluate(data=>receiveBackup(JSON.stringify(data)),fixture);await page.getByRole('button',{name:'Подтвердить',exact:true}).click();
     let restored=await page.evaluate(()=>JSON.parse(localStorage.getItem('mytodo')));
@@ -131,15 +131,15 @@ for(const version of ['1.0.0','1.1.0','1.2.0','1.3.0','1.4.0','1.5.0']){
 }
 
 test('request cooldown UI is tag-only and shows exact eligibility time with a live countdown',async({page})=>{
-  await page.evaluate(()=>{const s=Model.initial();s.auto=false;s.tags=[{id:'brief',name:'короткий',hours:.25}];s.pool=[{id:'timed',title:'Дождаться ответа',enabled:true,tags:['brief'],cooldownHours:999,lastSelected:Date.now()-15*60000+3000},{id:'ready',title:'Без задержки',enabled:true,tags:[],cooldownHours:999,lastSelected:Date.now()},{id:'paused',title:'На паузе',enabled:false,tags:[],cooldownHours:0,lastSelected:0}];localStorage.setItem('mytodo',JSON.stringify(s));});await page.reload();
-  const timed=page.locator('.pool-item').filter({hasText:'Дождаться ответа'}),ready=page.locator('.pool-item').filter({hasText:'Без задержки'});
-  await expect(timed).toContainText('Доступна с 21.10.2026, 10:00:03');await expect(timed).toContainText('Осталось 3 с');await expect(timed).toContainText('КД по тегам: 15 мин');await expect(ready).toContainText('Можно выбрать сейчас');await expect(ready).toContainText('КД по тегам: 0 ч');
-  await page.clock.fastForward(3000);await expect(timed).toContainText('Можно выбрать сейчас');await expect(timed).not.toContainText('Осталось');
-  await timed.locator('[data-pool]').first().click();await expect(page.getByLabel('СОБСТВЕННЫЙ COOLDOWN, ЧАСЫ')).toHaveCount(0);await expect(page.locator('#poolPreview')).toContainText('КД по тегам: 15 мин');
+  await page.evaluate(()=>{const s=Model.initial();s.auto=false;s.tags=[{id:'brief',name:'короткий',hours:.25}];s.tagLastSelected.brief=Date.now()-15*60000+3000;s.untaggedLastSelected=Date.now();s.pool=[{id:'timed',title:'Дождаться ответа',enabled:true,tags:['brief'],cooldownHours:999,lastSelected:0},{id:'ready',title:'Без тега',enabled:true,tags:[],cooldownHours:999,lastSelected:0},{id:'paused',title:'На паузе',enabled:false,tags:[],cooldownHours:0,lastSelected:0}];localStorage.setItem('mytodo',JSON.stringify(s));});await page.reload();
+  const timed=page.locator('.pool-item').filter({hasText:'Дождаться ответа'}),ready=page.locator('[data-availability="ready"]');
+  await expect(timed).toContainText('Доступна с 21.10.2026, 10:00:03');await expect(timed).toContainText('Ещё 3 с');await expect(timed).toContainText('КД группы 15 мин');await expect(ready).toContainText('Доступна с 23.10.2026');await expect(ready).toContainText('КД группы 48 ч');
+  await page.clock.fastForward(3000);await expect(timed).toContainText('Можно выбрать');await expect(timed).not.toContainText('Ещё');
+  await timed.locator('[data-pool]').first().click();await expect(page.getByLabel('СОБСТВЕННЫЙ COOLDOWN, ЧАСЫ')).toHaveCount(0);await expect(page.locator('#poolPreview')).toContainText('КД группы 15 мин');
 });
 
 test('invalid or cancelled JSON restore cannot change existing data',async({page})=>{
-  await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Важное дело');await page.getByRole('button',{name:'Добавить дело · +5 XP'}).click();const raw=await page.evaluate(()=>localStorage.getItem('mytodo'));
+  await page.locator('#addTask').click();await page.getByLabel('ЧТО ХОЧЕТСЯ СДЕЛАТЬ').fill('Важное дело');await page.getByRole('button',{name:'Добавить дело · +1 XP'}).click();const raw=await page.evaluate(()=>localStorage.getItem('mytodo'));
   await page.evaluate(()=>receiveBackup('{"schema":99}'));expect(await page.evaluate(()=>localStorage.getItem('mytodo'))).toBe(raw);
   const fixture=require('../fixtures/backups/v1.0.0.json');await page.evaluate(data=>receiveBackup(JSON.stringify(data)),fixture);await page.getByRole('button',{name:'Отмена',exact:true}).click();expect(await page.evaluate(()=>localStorage.getItem('mytodo'))).toBe(raw);await expect(page.locator('#tasks')).toContainText('Важное дело');
 });

@@ -7,13 +7,13 @@ function state(){return {...M.initial(),queueClockStartedAt:now,overdueCheckDay:
 for(const vector of require('./fixtures/weighted-selection.json'))test('shared Android/JS weights: '+vector.name,()=>{
   const s=state();s.queueClockStartedAt=vector.now;
   for(let i=0;i<vector.candidates.length;i++){
-    const c=vector.candidates[i],id='p'+i;s.tags.push({id:'tag'+i,name:'тег'+i,hours:c.cooldownMillis/M.HOUR});s.pool.push(pool(id,{queuedAt:c.queuedAt,enabled:c.enabled,lastSelected:c.lastSelected,tags:['tag'+i]}));
+    const c=vector.candidates[i],id='p'+i,tag='tag'+i;s.tags.push({id:tag,name:tag,hours:c.cooldownMillis/M.HOUR});s.tagLastSelected[tag]=c.lastSelected;s.pool.push(pool(id,{queuedAt:c.queuedAt,enabled:c.enabled,lastSelected:c.lastSelected,tags:[tag]}));
     if(c.pending)s.tasks.push({id:'task'+i,source:id,done:false});
   }
   assert.equal(M.select(s,vector.now,()=>vector.draw)?.source||null,vector.expected<0?null:'p'+vector.expected);
 });
 test('waiting three days versus one day gives exactly 75/25 selection probability and proportional draws',()=>{
-  const s=state();s.pool=[pool('old',{queuedAt:now-72*M.HOUR}),pool('new',{queuedAt:now-24*M.HOUR})];const stats=M.selectionStats(s,now);assert.equal(stats.old.probability,.75);assert.equal(stats.new.probability,.25);
+  const s=state();s.tags=[{id:'free',name:'без ожидания',hours:0}];s.pool=[pool('old',{queuedAt:now-72*M.HOUR,tags:['free']}),pool('new',{queuedAt:now-24*M.HOUR,tags:['free']})];const stats=M.selectionStats(s,now);assert.equal(stats.old.probability,.75);assert.equal(stats.new.probability,.25);
   const count={old:0,new:0};for(let i=0;i<1000;i++){s.tasks=[];count[M.select(s,now,()=>(i+.5)/1000).source]++;}assert.deepEqual(count,{old:750,new:250});assert.equal(s.xp,0);
 });
 test('waiting time survives editing pauses JSON restore and process reload; manual return starts new waiting',()=>{

@@ -89,5 +89,27 @@ public class StatePolicyTest {
         found.put("enabled",true);s.put("tasks",new JSONArray().put(selected));StatePolicy.moveOverdue(s,now+24*3600000L,zone);
         assertFalse(found.getBoolean("enabled"));assertEquals("2026-10-18",found.getString("overdueDate"));assertFalse(found.getJSONObject("taskBackup").has("requestBackup"));
     }
+    @Test public void oneSelectionBlocksEveryRequestWithItsTagAndTheUntaggedGroupHasTwoDays() throws Exception {
+        long now=Instant.parse("2026-10-21T12:00:00Z").toEpochMilli();
+        JSONObject s=new JSONObject("{\"schema\":3,\"tasks\":[],\"pool\":[],\"tags\":[],\"projects\":[],\"queueClockStartedAt\":1000}");
+        s.getJSONArray("tags").put(new JSONObject().put("id","home").put("name","дом").put("hours",24));
+        JSONObject first=new JSONObject().put("id","first").put("tags",new JSONArray().put("home")).put("lastSelected",0);
+        JSONObject second=new JSONObject().put("id","second").put("tags",new JSONArray().put("home")).put("lastSelected",0);
+        JSONObject plain=new JSONObject().put("id","plain").put("tags",new JSONArray()).put("lastSelected",0);
+        JSONObject another=new JSONObject().put("id","another").put("tags",new JSONArray()).put("lastSelected",0);
+        s.getJSONArray("pool").put(first).put(second).put(plain).put(another);StatePolicy.upgrade(s,now,ZoneId.of("UTC"));
+        assertEquals(0,StatePolicy.cooldownUntil(s,second));StatePolicy.markSelected(s,first,now);
+        assertEquals(now+24*3600000L,StatePolicy.cooldownUntil(s,second));assertEquals(0,StatePolicy.cooldownUntil(s,plain));
+        StatePolicy.markSelected(s,plain,now);assertEquals(now+48*3600000L,StatePolicy.cooldownUntil(s,another));
+    }
+    @Test public void nativeSelectionCarriesOriginalRequestProvenanceAcrossOverdueTasks() throws Exception {
+        JSONObject s=new JSONObject("{\"schema\":3,\"tasks\":[],\"pool\":[],\"tags\":[],\"projects\":[]}");
+        long now=Instant.parse("2026-10-21T12:00:00Z").toEpochMilli();ZoneId zone=ZoneId.of("UTC");
+        JSONObject ordinary=new JSONObject().put("id","late").put("title","Просроченное").put("tags",new JSONArray()).put("taskBackup",new JSONObject().put("id","task").put("source","").put("project","").put("reminder",0));
+        assertFalse(StatePolicy.taskFromRequest(s,ordinary,now,zone).getBoolean("requestOrigin"));
+        JSONObject original=new JSONObject().put("id","original").put("title","Просьба").put("tags",new JSONArray());
+        assertTrue(StatePolicy.taskFromRequest(s,original,now,zone).getBoolean("requestOrigin"));
+        original.put("requestOrigin",false);assertFalse(StatePolicy.taskFromRequest(s,original,now,zone).getBoolean("requestOrigin"));
+    }
 
 }

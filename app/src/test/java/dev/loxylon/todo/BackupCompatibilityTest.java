@@ -34,7 +34,7 @@ public class BackupCompatibilityTest {
     }
     @Test public void restoringAnyReleasedJsonSavesThePreviousDataAndDoesNotImmediatelyMoveImportedTasks() throws Exception {
         Context c=RuntimeEnvironment.getApplication();
-        for(String version:new String[]{"1.0.0","1.1.0","1.2.0","1.3.0","1.4.0","1.5.0"}){
+        for(String version:new String[]{"1.0.0","1.1.0","1.2.0","1.3.0","1.4.0","1.5.0","1.6.0"}){
             String previous=fixture("1.2.0");c.getSharedPreferences("todo",0).edit().clear().putString("state",previous).commit();
             JSONObject imported=new JSONObject(fixture(version));StatePolicy.prepareImport(imported,System.currentTimeMillis(),ZoneId.systemDefault());
             JSONObject expected=new JSONObject(imported.toString());Store.write(c,imported,"beforeImport");
@@ -47,8 +47,8 @@ public class BackupCompatibilityTest {
         try{Store.read(c);fail("Future schemas must not be rewritten");}catch(JSONException expected){}
         assertEquals(raw,c.getSharedPreferences("todo",0).getString("state",""));
     }
-    @Test public void tagOnlyCooldownAndUpgradeGraceAreIdenticalToForegroundRules() throws Exception {
-        JSONObject s=new JSONObject(fixture("1.0.0")),p=s.getJSONArray("pool").getJSONObject(2);assertEquals(0,StatePolicy.cooldownHours(s,p),0);
+    @Test public void groupCooldownAndUpgradeGraceAreIdenticalToForegroundRules() throws Exception {
+        JSONObject s=new JSONObject(fixture("1.0.0")),p=s.getJSONArray("pool").getJSONObject(2);assertEquals(48,StatePolicy.cooldownHours(s,p),0);
         p.put("tags",new JSONArray().put("health").put("home"));assertEquals(72,StatePolicy.cooldownHours(s,p),0);
         long now=Instant.parse("2026-10-21T12:00:00Z").toEpochMilli();ZoneId zone=ZoneId.of("UTC");StatePolicy.upgrade(s,now,zone);
         assertEquals(0,StatePolicy.moveOverdue(s,now,zone));assertTrue(StatePolicy.moveOverdue(s,now+24*3600000L,zone)>0);
@@ -57,6 +57,14 @@ public class BackupCompatibilityTest {
         Context c=RuntimeEnvironment.getApplication();String raw=fixture("1.4.0");c.getSharedPreferences("todo",0).edit().clear().putString("state",raw).commit();
         JSONObject expected=new JSONObject(raw);JSONObject updated=Store.read(c);sameRecords(expected,updated);assertTrue(updated.has("queueClockStartedAt"));
         assertEquals(raw,c.getSharedPreferences("todo",0).getString("beforeMigration",""));
+        String stored=c.getSharedPreferences("todo",0).getString("state","");Store.read(c);assertEquals(stored,c.getSharedPreferences("todo",0).getString("state",""));
+    }
+    @Test public void installedVersion16RetainsRecordsAndQueueAgesWhenGroupClocksAreAdded() throws Exception {
+        Context c=RuntimeEnvironment.getApplication();String raw=fixture("1.6.0");c.getSharedPreferences("todo",0).edit().clear().putString("state",raw).commit();
+        JSONObject expected=new JSONObject(raw),updated=Store.read(c);sameRecords(expected,updated);
+        assertEquals(expected.getLong("queueClockStartedAt"),updated.getLong("queueClockStartedAt"));
+        assertEquals(expected.getJSONArray("pool").getJSONObject(0).getLong("queuedAt"),updated.getJSONArray("pool").getJSONObject(0).getLong("queuedAt"));
+        assertEquals(1,updated.getInt("tagCooldownVersion"));assertEquals(raw,c.getSharedPreferences("todo",0).getString("beforeMigration",""));
         String stored=c.getSharedPreferences("todo",0).getString("state","");Store.read(c);assertEquals(stored,c.getSharedPreferences("todo",0).getString("state",""));
     }
 

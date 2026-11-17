@@ -4,7 +4,7 @@
   const rankNames = ['Первый шаг','Искра','Росток','Наблюдатель','Искатель','Ученик','Практик','Следопыт','Собиратель','Проводник','Ремесленник','Созидатель','Навигатор','Знаток','Стратег','Хранитель ритма','Исследователь','Архитектор дня','Мастер привычек','Алхимик','Покоритель вершин','Капитан','Виртуоз','Наставник','Хранитель времени','Мастер фокуса','Первооткрыватель','Маэстро','Зодчий','Мудрец','Вдохновитель','Повелитель ритма','Картограф','Хранитель баланса','Грандмастер','Покоритель горизонтов','Творец порядка','Светоч','Пилигрим','Хранитель огня','Архитектор перемен','Астральный странник','Мастер пути','Проводник света','Созвездие','Хранитель рассвета','Творец миров','Повелитель времени','Легенда','Северная звезда','Оракул','Хранитель вселенной','Бесконечный горизонт','Источник вдохновения','Вечный двигатель','Сверхновая','Космический архитектор','Мастер бесконечности','За гранью возможного','Абсолют'];
   const uid = () => (root.crypto?.randomUUID?.() || Date.now().toString(36)+Math.random().toString(36).slice(2));
   const day = (ts=Date.now()) => { const d=new Date(ts); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-  const initial = () => ({schema:3,queueClockStartedAt:Date.now(),tasks:[],pool:[],tags:[],projects:[],xp:0,theme:'sage',intervalHours:8,auto:true,lastRotation:0,overdueCheckDay:day()});
+  const initial = () => ({schema:3,queueClockStartedAt:Date.now(),tagCooldownVersion:1,tagLastSelected:{},untaggedLastSelected:0,tasks:[],pool:[],tags:[],projects:[],xp:0,theme:'sage',intervalHours:8,auto:true,lastRotation:0,overdueCheckDay:day()});
   function validDay(value) {
     if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
     const d=new Date(value+'T12:00:00');
@@ -21,12 +21,27 @@
   function migrate(s,now=Date.now()) {
     if(s.schema<3||s.queueClockStartedAt===undefined){s.schema=3;s.overdueCheckDay=day(now);s.lastRotation=now;if(s.queueClockStartedAt===undefined)s.queueClockStartedAt=now;}
     normalizeCooldowns(s);
+    if(s.tagCooldownVersion!==1){
+      s.tagLastSelected={};s.untaggedLastSelected=0;
+      for(const p of [...s.pool,...s.tasks.map(t=>t.requestBackup).filter(Boolean)]){
+        const assigned=p.tags.filter(id=>s.tags.some(t=>t.id===id));
+        if(assigned.length)for(const id of assigned)s.tagLastSelected={...s.tagLastSelected,[id]:Math.max(Object.hasOwn(s.tagLastSelected,id)?s.tagLastSelected[id]:0,p.lastSelected||0)};
+        else s.untaggedLastSelected=Math.max(s.untaggedLastSelected,p.lastSelected||0);
+      }
+      s.tagCooldownVersion=1;
+    }
     return s;
   }
   function prepareImport(s,now=Date.now()){validate(s,now);s.overdueCheckDay=day(now);s.lastRotation=now;return s;}
   function isDated(t) { return !t.project||t.scheduled===true; }
   function isOverdueRequest(s,p) {
     return !!p.overdueDate||!!p.taskBackup?.overdueDate||p.tags.some(id=>s.tags.some(t=>t.id===id&&t.name.trim().toLowerCase()==='просроченные'));
+  }
+  function wasOriginalRequest(s,t) {
+    if(typeof t.requestOrigin==='boolean')return t.requestOrigin;
+    if(!t.source)return false;
+    const p=s.pool.find(p=>p.id===t.source)||t.requestBackup;
+    return !!p&&(typeof p.requestOrigin==='boolean'?p.requestOrigin:!p.taskBackup||!!p.taskBackup.source);
   }
   function taskOverdueDate(s,t,today=day()) {
     const origin=s.pool.find(p=>p.id===t.source)||t.requestBackup;
@@ -39,6 +54,7 @@
       p=original&&!s.pool.some(p=>p.id===original.id)?JSON.parse(JSON.stringify(original)):{id:uid(),title:t.title,tags:[],cooldownHours:0,enabled:true,lastSelected:0};
       s.pool.push(p);
     }
+    p.requestOrigin=wasOriginalRequest(s,t);
     const backup=JSON.parse(JSON.stringify(t));delete backup.requestBackup;delete backup.manualRequest;
     p.title=t.title;p.taskBackup=backup;p.cooldownHours=0;p.queuedAt=now;
     if(overdueDate){
@@ -61,6 +77,7 @@
   function returnToRequests(s,id,now=Date.now()) {
     const t=s.tasks.find(t=>t.id===id);if(!t)throw Error('Дело уже перенесено или удалено');
     if(t.done)throw Error('Сначала отмените выполнение дела');
+    if(!wasOriginalRequest(s,t))throw Error('Вернуть можно только дело, созданное из просьбы');
     const p=queueTask(s,t,taskOverdueDate(s,t,day(now)),true,now);
     s.tasks=s.tasks.filter(t=>t.id!==id);s.lastRotation=now;
     return p;
@@ -84,9 +101,21 @@
   }
   const threshold = i => i === 0 ? 0 : Math.round(100*Math.pow(i,1.65));
   function rank(xp) { let i=0; while(i<rankNames.length-1 && xp>=threshold(i+1)) i++; return {index:i,name:rankNames[i],start:threshold(i),next:i===rankNames.length-1?null:threshold(i+1)}; }
-  function cooldown(s,p) { return Math.max(0,...p.tags.map(id=>s.tags.find(t=>t.id===id)?.hours||0))*HOUR; }
+  function assignedTags(s,p){return s.tags.filter(t=>p.tags.includes(t.id));}
+  function cooldown(s,p) { const tags=assignedTags(s,p);return (tags.length?Math.max(...tags.map(t=>t.hours)):48)*HOUR; }
+  function cooldownUntil(s,p){
+    const tags=assignedTags(s,p);
+    if(!tags.length)return s.untaggedLastSelected? s.untaggedLastSelected+48*HOUR:0;
+    return Math.max(0,...tags.map(t=>Object.hasOwn(s.tagLastSelected||{},t.id)&&t.hours?s.tagLastSelected[t.id]+t.hours*HOUR:0));
+  }
+  function markSelected(s,p,now){
+    p.lastSelected=now;
+    const tags=assignedTags(s,p);
+    if(tags.length)for(const t of tags)s.tagLastSelected={...s.tagLastSelected,[t.id]:now};
+    else s.untaggedLastSelected=now;
+  }
   function availability(s,p,now=Date.now()) {
-    const cooldownMillis=cooldown(s,p),availableAt=cooldownMillis>0&&p.lastSelected?p.lastSelected+cooldownMillis:0;
+    const cooldownMillis=cooldown(s,p),availableAt=cooldownUntil(s,p);
     const task=s.tasks.find(t=>(t.source===p.id&&!t.done)||t.id===p.taskBackup?.id);
     const kind=!p.enabled?'excluded':task?'pending':availableAt>now?'cooldown':'ready';
     return {kind,eligible:kind==='ready',availableAt,remainingMs:Math.max(0,availableAt-now),cooldownMillis,task};
@@ -109,9 +138,9 @@
     const t=p.taskBackup?JSON.parse(JSON.stringify(p.taskBackup)):{id:uid(),rewarded:false};
     if(p.overdueDate)t.overdueDate=p.overdueDate;
     delete t.requestBackup;delete t.manualRequest;
-    Object.assign(t,{title:p.title,date:day(now),project:s.projects.some(x=>x.id===t.project)?t.project:'',source:p.id,done:false,reminder:t.reminder>now?t.reminder:0,notified:false});
+    Object.assign(t,{title:p.title,date:day(now),project:s.projects.some(x=>x.id===t.project)?t.project:'',source:p.id,requestOrigin:p.requestOrigin??(!p.taskBackup||!!p.taskBackup.source),done:false,reminder:t.reminder>now?t.reminder:0,notified:false});
     if(p.taskBackup)t.scheduled=true;
-    s.tasks.push(t); p.lastSelected=now; return t;
+    s.tasks.push(t);markSelected(s,p,now);return t;
   }
   // Explicit scheduling is a user decision, independent of automatic cooldown/exclusions.
   function scheduleRequest(s,id,date,now=Date.now()) {
@@ -120,9 +149,9 @@
     const existing=s.tasks.find(t=>(t.source===id&&!t.done)||t.id===p.taskBackup?.id);
     if(existing?.done)throw Error('Эта задача уже выполнена');
     const t=existing||(p.taskBackup?JSON.parse(JSON.stringify(p.taskBackup)):{id:uid(),rewarded:false});
-    Object.assign(t,{title:p.title,date,scheduled:true,project:s.projects.some(x=>x.id===t.project)?t.project:'',source:p.id,done:false,manualRequest:true,reminder:t.reminder>now&&day(t.reminder)>=date?t.reminder:0,notified:false});
+    Object.assign(t,{title:p.title,date,scheduled:true,project:s.projects.some(x=>x.id===t.project)?t.project:'',source:p.id,requestOrigin:p.requestOrigin??(!p.taskBackup||!!p.taskBackup.source),done:false,manualRequest:true,reminder:t.reminder>now&&day(t.reminder)>=date?t.reminder:0,notified:false});
     if(p.overdueDate)t.overdueDate=p.overdueDate;
-    p.lastSelected=now;t.requestBackup=JSON.parse(JSON.stringify(p));
+    markSelected(s,p,now);t.requestBackup=JSON.parse(JSON.stringify(p));
     if(!existing)s.tasks.push(t);s.pool=s.pool.filter(p=>p.id!==id);return t;
   }
   function rotate(s,now=Date.now(),random=Math.random) {
@@ -159,7 +188,7 @@
       delete t.completedDate;
       if(t.requestBackup&&!t.manualRequest&&!s.pool.some(p=>p.id===t.requestBackup.id))s.pool.push(JSON.parse(JSON.stringify(t.requestBackup)));
     }
-    if(t.done&&!t.rewarded){t.rewarded=true;xp=20;s.xp+=xp;}
+    if(t.done&&!t.rewarded){t.rewarded=true;xp=8;s.xp+=xp;}
     return xp;
   }
   function validate(s,now=Date.now()) {
@@ -171,8 +200,8 @@
     }
     for(const item of [...s.tasks,...s.pool]) if(typeof item.title!=='string'||!item.title.trim()||item.title.length>300) throw Error('Некорректное название задачи');
     const requests=[...s.pool,...s.tasks.filter(t=>t.requestBackup).map(t=>t.requestBackup)];
-    for(const p of requests) if(typeof p.id!=='string'||!/^[\w-]{1,100}$/.test(p.id)||['rotation','day-rollover'].includes(p.id)||typeof p.title!=='string'||!p.title.trim()||p.title.length>300||!Array.isArray(p.tags)||p.tags.some(t=>typeof t!=='string')||typeof p.enabled!=='boolean'||!Number.isFinite(p.cooldownHours)||p.cooldownHours<0||p.cooldownHours>87600||!Number.isFinite(p.lastSelected)||p.lastSelected<0) throw Error('Некорректная просьба');
-    for(const t of s.tasks) if(typeof t.done!=='boolean'||typeof t.project!=='string'||!validDay(t.date)||!Number.isFinite(t.reminder)||t.reminder<0||(t.scheduled!==undefined&&typeof t.scheduled!=='boolean')||(t.completedDate!==undefined&&!validDay(t.completedDate))||(t.requestBackup&&t.requestBackup.id!==t.source)) throw Error('Некорректная задача');
+    for(const p of requests) if(typeof p.id!=='string'||!/^[\w-]{1,100}$/.test(p.id)||['rotation','day-rollover'].includes(p.id)||typeof p.title!=='string'||!p.title.trim()||p.title.length>300||!Array.isArray(p.tags)||p.tags.some(t=>typeof t!=='string')||typeof p.enabled!=='boolean'||!Number.isFinite(p.cooldownHours)||p.cooldownHours<0||p.cooldownHours>87600||!Number.isFinite(p.lastSelected)||p.lastSelected<0||(p.requestOrigin!==undefined&&typeof p.requestOrigin!=='boolean')) throw Error('Некорректная просьба');
+    for(const t of s.tasks) if(typeof t.done!=='boolean'||typeof t.project!=='string'||!validDay(t.date)||!Number.isFinite(t.reminder)||t.reminder<0||(t.scheduled!==undefined&&typeof t.scheduled!=='boolean')||(t.completedDate!==undefined&&!validDay(t.completedDate))||(t.requestBackup&&t.requestBackup.id!==t.source)||(t.requestOrigin!==undefined&&typeof t.requestOrigin!=='boolean')) throw Error('Некорректная задача');
     for(const ts of [s.queueClockStartedAt,...requests.map(p=>p.queuedAt)])if(ts!==undefined&&(!Number.isSafeInteger(ts)||ts<0||ts>8640000000000000))throw Error('Некорректная дата добавления в очередь');
     for(const p of requests) {
       if(p.overdueDate!==undefined&&!validDay(p.overdueDate))throw Error('Некорректная дата просроченной просьбы');
@@ -187,11 +216,15 @@
       if(t.manualRequest!==undefined&&typeof t.manualRequest!=='boolean')throw Error('Некорректный перенос просьбы');
     }
     for(const t of s.tags) if(typeof t.name!=='string'||!t.name.trim()||t.name.length>60||!Number.isFinite(t.hours)||t.hours<0||t.hours>87600) throw Error('Некорректный тег');
+    if(s.tagCooldownVersion!==undefined&&s.tagCooldownVersion!==1)throw Error('Некорректная версия правил ожидания');
+    if(s.tagCooldownVersion===1&&(s.tagLastSelected===undefined||s.untaggedLastSelected===undefined))throw Error('Неполная история ожидания просьб');
+    if(s.tagLastSelected!==undefined&&(typeof s.tagLastSelected!=='object'||!s.tagLastSelected||Array.isArray(s.tagLastSelected)||Object.entries(s.tagLastSelected).some(([id,ts])=>!/^[\w-]{1,100}$/.test(id)||!Number.isSafeInteger(ts)||ts<0||ts>8640000000000000)))throw Error('Некорректная история ожидания тегов');
+    if(s.untaggedLastSelected!==undefined&&(!Number.isSafeInteger(s.untaggedLastSelected)||s.untaggedLastSelected<0||s.untaggedLastSelected>8640000000000000))throw Error('Некорректная история ожидания просьб');
     for(const p of s.projects) if(typeof p.name!=='string'||!p.name.trim()||p.name.length>60) throw Error('Некорректный проект');
     if(!Number.isFinite(s.xp)||s.xp<0||s.xp>1e9||!Number.isFinite(s.intervalHours)||s.intervalHours<.25||s.intervalHours>8760||typeof s.auto!=='boolean'||!Number.isFinite(s.lastRotation)||s.lastRotation<0) throw Error('Некорректные настройки');
     if(s.overdueCheckDay!==undefined&&!validDay(s.overdueCheckDay))throw Error('Некорректная дата обработки задач');
     return migrate(s,now);
   }
-  const API={HOUR,rankNames,uid,day,validDay,addDays,initial,migrate,prepareImport,isDated,isOverdueRequest,taskOverdueDate,moveOverdue,returnToRequests,reconcile,todayTasks,tasksOnDate,calendarCounts,calendarCells,threshold,rank,cooldown,availability,eligible,queuedSince,selectionStats,select,scheduleRequest,rotate,complete,validate};
+  const API={HOUR,rankNames,uid,day,validDay,addDays,initial,migrate,prepareImport,isDated,isOverdueRequest,wasOriginalRequest,taskOverdueDate,moveOverdue,returnToRequests,reconcile,todayTasks,tasksOnDate,calendarCounts,calendarCells,threshold,rank,cooldown,cooldownUntil,markSelected,availability,eligible,queuedSince,selectionStats,select,scheduleRequest,rotate,complete,validate};
   if(typeof module!=='undefined') module.exports=API; else root.Model=API;
 })(typeof window!=='undefined'?window:globalThis);
