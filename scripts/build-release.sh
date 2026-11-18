@@ -7,7 +7,7 @@ if [[ -z "${TODO_KEYSTORE:-}" && -f /workspace/.todo-signing/release.jks ]]; the
   export TODO_STORE_PASSWORD="$(cat /workspace/.todo-signing/credentials)"
   export TODO_KEY_PASSWORD="$TODO_STORE_PASSWORD"
 fi
-: "${TODO_KEYSTORE:?Set TODO_KEYSTORE to the original release keystore}"
+: "${TODO_KEYSTORE:?Set TODO_KEYSTORE to the v1.7 release keystore}"
 : "${TODO_STORE_PASSWORD:?Set TODO_STORE_PASSWORD}"
 : "${TODO_KEY_PASSWORD:?Set TODO_KEY_PASSWORD}"
 ./gradlew testDebugUnitTest lintRelease assembleRelease --no-daemon "$@"

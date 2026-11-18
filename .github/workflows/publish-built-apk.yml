@@ -18,21 +18,26 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools build-tools;35.0.0'
-      - name: Verify release checksum and original signer
+      - name: Verify release checksum, signer and version
         run: |
           cd release
           sha256sum --check SHA256SUMS.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs My-TODO.apk > signature.txt
           cat signature.txt
-          grep -Fx 'Signer #1 certificate SHA-256 digest: 0b0c76696ae7a62cf28b58ea34ed790d3380c1f48e45ba1b066975e637ed17ee' signature.txt
+          grep -Fx 'Signer #1 certificate SHA-256 digest: 628858f6b91f828f8fe8c7ddd838cc8d7e14b7bf8ecac1a823a872d1361073bc' signature.txt
           VERSION=$(cat VERSION)
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging My-TODO.apk > package.txt
           grep -F "package: name='dev.loxylon.todo'" package.txt
           grep -F "versionName='$VERSION'" package.txt
-      - name: Upload signed APK to draft release
+          grep -F "versionCode='8'" package.txt
+      - name: Publish signed APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(cat release/VERSION)
+          if ! gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release create "v$VERSION" --draft --target "$GITHUB_SHA" --title "My TODO $VERSION" --notes-file release/NOTES.md
+          fi
           gh release upload "v$VERSION" release/My-TODO.apk release/SHA256SUMS.txt --clobber
+          gh release edit "v$VERSION" --notes-file release/NOTES.md --draft=false --latest
