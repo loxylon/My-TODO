@@ -5,13 +5,15 @@ import android.content.*;
 import android.net.Uri;
 import android.os.Build;
 import org.json.*;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 
 final class Alarms {
     static final String CHANNEL = "todo-reminders";
     static void channels(Context c) {
         NotificationChannel ch = new NotificationChannel(CHANNEL, "Напоминания о делах", NotificationManager.IMPORTANCE_HIGH);
-        ch.setDescription("Уведомления в указанное для задачи время");
+        ch.setDescription("Напоминания о делах, событиях и дедлайнах");
         c.getSystemService(NotificationManager.class).createNotificationChannel(ch);
     }
     private static PendingIntent intent(Context c, String id) {
@@ -21,6 +23,11 @@ final class Alarms {
         AlarmManager am = c.getSystemService(AlarmManager.class);
         if (Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, time, intent(c,id));
         else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, time, intent(c,id));
+    }
+    static long eventReminderAt(JSONObject event) {
+        long target=event.optLong("deadline");
+        if(target==0&&!event.optString("date").isEmpty())target=LocalDate.parse(event.optString("date")).atTime(9,0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        return target==0?0:target-(long)(event.optDouble("remindBeforeHours")*3600000);
     }
     static synchronized void sync(Context c, JSONObject s) throws JSONException {
         channels(c);
@@ -36,6 +43,12 @@ final class Alarms {
             if(!t.optBoolean("done") && when>now && !t.optBoolean("notified")) {
                 String id=t.getString("id"); at(c,id,when); ids.add(id);
             }
+        }
+        JSONArray events=s.optJSONArray("events");
+        if(events!=null)for(int i=0;i<events.length();i++){
+            JSONObject event=events.getJSONObject(i);String id="event:"+event.getString("id");long when=eventReminderAt(event);
+            activeTaskIds.add(id);
+            if(when>now&&!event.optBoolean("notified")){at(c,id,when);ids.add(id);}
         }
         NotificationManager notifications=c.getSystemService(NotificationManager.class);
         for(android.service.notification.StatusBarNotification n:notifications.getActiveNotifications()) {
@@ -65,6 +78,17 @@ final class Alarms {
                 c.getSystemService(NotificationManager.class).notify(t.getString("id"),1,n);
                 t.put("notified",true); changed=true;
             }
+        }
+        JSONArray events=s.optJSONArray("events");
+        if(events!=null)for(int i=0;i<events.length();i++){
+            JSONObject event=events.getJSONObject(i);long when=eventReminderAt(event);
+            if(event.optBoolean("notified")||when<=0||when>System.currentTimeMillis())continue;
+            if(Build.VERSION.SDK_INT>=33 && c.checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=android.content.pm.PackageManager.PERMISSION_GRANTED)continue;
+            PendingIntent open=PendingIntent.getActivity(c,0,new Intent(c,MainActivity.class),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+            String title=event.getString("title"),description=event.optString("description");
+            Notification n=new Notification.Builder(c,CHANNEL).setSmallIcon(dev.loxylon.todo.R.drawable.ic_notification).setContentTitle("Событие или дедлайн").setContentText(title).setStyle(new Notification.BigTextStyle().bigText(description.isEmpty()?title:title+"\n"+description)).setContentIntent(open).setAutoCancel(true).build();
+            c.getSystemService(NotificationManager.class).notify("event:"+event.getString("id"),1,n);
+            event.put("notified",true);changed=true;
         }
         if(changed) Store.write(c,s);
     }

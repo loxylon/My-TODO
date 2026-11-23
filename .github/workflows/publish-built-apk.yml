@@ -30,7 +30,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging My-TODO.apk > package.txt
           grep -F "package: name='dev.loxylon.todo'" package.txt
           grep -F "versionName='$VERSION'" package.txt
-          grep -F "versionCode='8'" package.txt
+          grep -F "versionCode='9'" package.txt
       - name: Publish signed APK
         env:
           GH_TOKEN: ${{ github.token }}

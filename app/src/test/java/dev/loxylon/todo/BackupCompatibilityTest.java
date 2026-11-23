@@ -34,7 +34,7 @@ public class BackupCompatibilityTest {
     }
     @Test public void restoringAnyReleasedJsonSavesThePreviousDataAndDoesNotImmediatelyMoveImportedTasks() throws Exception {
         Context c=RuntimeEnvironment.getApplication();
-        for(String version:new String[]{"1.0.0","1.1.0","1.2.0","1.3.0","1.4.0","1.5.0","1.6.0"}){
+        for(String version:new String[]{"1.0.0","1.1.0","1.2.0","1.3.0","1.4.0","1.5.0","1.6.0","1.7.0"}){
             String previous=fixture("1.2.0");c.getSharedPreferences("todo",0).edit().clear().putString("state",previous).commit();
             JSONObject imported=new JSONObject(fixture(version));StatePolicy.prepareImport(imported,System.currentTimeMillis(),ZoneId.systemDefault());
             JSONObject expected=new JSONObject(imported.toString());Store.write(c,imported,"beforeImport");
@@ -66,6 +66,20 @@ public class BackupCompatibilityTest {
         assertEquals(expected.getJSONArray("pool").getJSONObject(0).getLong("queuedAt"),updated.getJSONArray("pool").getJSONObject(0).getLong("queuedAt"));
         assertEquals(1,updated.getInt("tagCooldownVersion"));assertEquals(raw,c.getSharedPreferences("todo",0).getString("beforeMigration",""));
         String stored=c.getSharedPreferences("todo",0).getString("state","");Store.read(c);assertEquals(stored,c.getSharedPreferences("todo",0).getString("state",""));
+    }
+    @Test public void installedVersion17AddsFeatureCollectionsWithoutMovingExistingData() throws Exception {
+        Context c=RuntimeEnvironment.getApplication();String raw=fixture("1.7.0");
+        c.getSharedPreferences("todo",0).edit().clear().putString("state",raw).commit();
+        JSONObject expected=new JSONObject(raw),updated=Store.read(c);sameRecords(expected,updated);
+        assertEquals(0,updated.getJSONArray("events").length());assertEquals(0,updated.getJSONArray("graphs").length());
+        assertEquals(raw,c.getSharedPreferences("todo",0).getString("beforeMigration",""));
+        JSONObject event=new JSONObject().put("id","event-1").put("title","Важное событие").put("description","Детали").put("date","").put("deadline",0).put("remindBeforeHours",0).put("notified",false);
+        updated.getJSONArray("events").put(event);
+        updated.getJSONArray("graphs").put(new JSONObject().put("project",updated.getJSONArray("projects").getJSONObject(0).getString("id")).put("nodes",new JSONArray()).put("edges",new JSONArray()));
+        updated.put("overdueCheckDay",LocalDate.now().toString()).put("auto",false);
+        Store.write(c,updated);JSONObject after=Store.reconcile(c);
+        assertEquals(event.toString(),after.getJSONArray("events").getJSONObject(0).toString());
+        assertEquals(1,after.getJSONArray("graphs").length());sameRecords(expected,after);
     }
 
 }

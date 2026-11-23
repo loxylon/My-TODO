@@ -4,7 +4,7 @@
   const rankNames = ['Первый шаг','Искра','Росток','Наблюдатель','Искатель','Ученик','Практик','Следопыт','Собиратель','Проводник','Ремесленник','Созидатель','Навигатор','Знаток','Стратег','Хранитель ритма','Исследователь','Архитектор дня','Мастер привычек','Алхимик','Покоритель вершин','Капитан','Виртуоз','Наставник','Хранитель времени','Мастер фокуса','Первооткрыватель','Маэстро','Зодчий','Мудрец','Вдохновитель','Повелитель ритма','Картограф','Хранитель баланса','Грандмастер','Покоритель горизонтов','Творец порядка','Светоч','Пилигрим','Хранитель огня','Архитектор перемен','Астральный странник','Мастер пути','Проводник света','Созвездие','Хранитель рассвета','Творец миров','Повелитель времени','Легенда','Северная звезда','Оракул','Хранитель вселенной','Бесконечный горизонт','Источник вдохновения','Вечный двигатель','Сверхновая','Космический архитектор','Мастер бесконечности','За гранью возможного','Абсолют'];
   const uid = () => (root.crypto?.randomUUID?.() || Date.now().toString(36)+Math.random().toString(36).slice(2));
   const day = (ts=Date.now()) => { const d=new Date(ts); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-  const initial = () => ({schema:3,queueClockStartedAt:Date.now(),tagCooldownVersion:1,tagLastSelected:{},untaggedLastSelected:0,tasks:[],pool:[],tags:[],projects:[],xp:0,theme:'sage',intervalHours:8,auto:true,lastRotation:0,overdueCheckDay:day()});
+  const initial = () => ({schema:3,queueClockStartedAt:Date.now(),tagCooldownVersion:1,tagLastSelected:{},untaggedLastSelected:0,tasks:[],pool:[],tags:[],projects:[],events:[],graphs:[],xp:0,theme:'sage',intervalHours:8,auto:true,lastRotation:0,overdueCheckDay:day()});
   function validDay(value) {
     if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
     const d=new Date(value+'T12:00:00');
@@ -21,6 +21,8 @@
   function migrate(s,now=Date.now()) {
     if(s.schema<3||s.queueClockStartedAt===undefined){s.schema=3;s.overdueCheckDay=day(now);s.lastRotation=now;if(s.queueClockStartedAt===undefined)s.queueClockStartedAt=now;}
     normalizeCooldowns(s);
+    if(s.events===undefined)s.events=[];
+    if(s.graphs===undefined)s.graphs=[];
     if(s.tagCooldownVersion!==1){
       s.tagLastSelected={};s.untaggedLastSelected=0;
       for(const p of [...s.pool,...s.tasks.map(t=>t.requestBackup).filter(Boolean)]){
@@ -99,6 +101,75 @@
       return {date:day(d.getTime()),number:d.getDate(),inMonth:d.getMonth()===month};
     });
   }
+  function eventDate(e){return e.date||(e.deadline?day(e.deadline):'');}
+  function eventReminderAt(e){
+    const target=e.deadline||(e.date?new Date(e.date+'T09:00:00').getTime():0);
+    return target?target-(e.remindBeforeHours||0)*HOUR:0;
+  }
+  function eventCounts(s){const counts={};for(const e of s.events||[]){const date=eventDate(e);if(date)counts[date]=(counts[date]||0)+1;}return counts;}
+  function graphFor(s,project){return (s.graphs||[]).find(g=>g.project===project);}
+  function ensureGraph(s,project){
+    if(!s.projects.some(p=>p.id===project))throw Error('Проект не найден');
+    let graph=graphFor(s,project);if(!graph){graph={project,nodes:[],edges:[]};s.graphs.push(graph);}return graph;
+  }
+  function graphLevels(graph){
+    const levels=Object.fromEntries(graph.nodes.map(n=>[n.id,0])),indegree=Object.fromEntries(graph.nodes.map(n=>[n.id,0])),outgoing=Object.fromEntries(graph.nodes.map(n=>[n.id,[]]));
+    for(const edge of graph.edges){indegree[edge.to]++;outgoing[edge.from].push(edge.to);}
+    const queue=graph.nodes.map(n=>n.id).filter(id=>indegree[id]===0);let visited=0;
+    for(let i=0;i<queue.length;i++){
+      const from=queue[i];visited++;
+      for(const to of outgoing[from]){levels[to]=Math.max(levels[to],levels[from]+1);if(--indegree[to]===0)queue.push(to);}
+    }
+    if(visited!==graph.nodes.length)throw Error('В графе обнаружен цикл');
+    return levels;
+  }
+  function addGraphNode(s,project,text,parentId=''){
+    const graph=ensureGraph(s,project);
+    if(!text.trim()||text.length>120)throw Error('Напишите идею до 120 символов');
+    if(graph.nodes.length&&!parentId)throw Error('Выберите родительскую вершину');
+    if(parentId&&!graph.nodes.some(n=>n.id===parentId))throw Error('Родительская вершина не найдена');
+    const node={id:uid(),text:text.trim(),taskIds:[]};graph.nodes.push(node);
+    if(parentId)graph.edges.push({from:parentId,to:node.id});return node;
+  }
+  function addGraphEdge(s,project,from,to){
+    const graph=ensureGraph(s,project);
+    if(from===to||!graph.nodes.some(n=>n.id===from)||!graph.nodes.some(n=>n.id===to))throw Error('Выберите две разные вершины');
+    if(graph.edges.some(e=>e.from===from&&e.to===to))throw Error('Эти вершины уже соединены');
+    const levels=graphLevels(graph);
+    if(levels[from]>=levels[to])throw Error('Связь ведёт от нижней вершины к более высокой');
+    graph.edges.push({from,to});return graph;
+  }
+  function attachGraphTask(s,project,nodeId,taskId){
+    const graph=ensureGraph(s,project),node=graph.nodes.find(n=>n.id===nodeId),task=s.tasks.find(t=>t.id===taskId&&t.project===project);
+    if(!node||!task)throw Error('Вершина или дело не найдены в проекте');
+    if(!node.taskIds.includes(taskId))node.taskIds.push(taskId);
+  }
+  function graphLayout(graph,minWidth=340,minHeight=550){
+    const levels=graphLevels(graph),maxLevel=Math.max(0,...Object.values(levels)),layers=Array.from({length:maxLevel+1},()=>[]);
+    for(const node of graph.nodes)layers[levels[node.id]].push(node.id);
+    const parents=Object.fromEntries(graph.nodes.map(n=>[n.id,[]])),children=Object.fromEntries(graph.nodes.map(n=>[n.id,[]]));
+    for(const edge of graph.edges){parents[edge.to].push(edge.from);children[edge.from].push(edge.to);}
+    const reorder=(level,neighborLevel)=>{
+      const indices=Object.fromEntries(layers[neighborLevel].map((id,i)=>[id,i])),oldOrder=Object.fromEntries(layers[level].map((id,i)=>[id,i])),neighbors=neighborLevel<level?parents:children;
+      const mean=id=>{const found=neighbors[id].filter(other=>indices[other]!==undefined).map(other=>indices[other]);return found.length?found.reduce((sum,x)=>sum+x,0)/found.length:oldOrder[id];};
+      layers[level].sort((a,b)=>{
+        return mean(a)-mean(b)||oldOrder[a]-oldOrder[b];
+      });
+    };
+    for(let pass=0;pass<5;pass++){
+      for(let level=1;level<=maxLevel;level++)reorder(level,level-1);
+      for(let level=maxLevel-1;level>=0;level--)reorder(level,level+1);
+    }
+    const width=Math.max(minWidth,...layers.map(layer=>layer.length*206+40)),height=Math.max(minHeight,150+maxLevel*154+90),positions={};
+    for(let level=0;level<layers.length;level++)for(let i=0;i<layers[level].length;i++){
+      positions[layers[level][i]]={x:width/2+(i-(layers[level].length-1)/2)*206,y:height-78-level*154,level};
+    }
+    return {width,height,positions,layers};
+  }
+  function sortedProjectTasks(s,project){return s.tasks.filter(t=>t.project===project).sort((a,b)=>{
+    const aDate=a.scheduled===true?a.date:'',bDate=b.scheduled===true?b.date:'';
+    return aDate&&bDate?aDate.localeCompare(bDate):aDate?-1:bDate?1:0;
+  });}
   const threshold = i => i === 0 ? 0 : Math.round(100*Math.pow(i,1.65));
   function rank(xp) { let i=0; while(i<rankNames.length-1 && xp>=threshold(i+1)) i++; return {index:i,name:rankNames[i],start:threshold(i),next:i===rankNames.length-1?null:threshold(i+1)}; }
   function assignedTags(s,p){return s.tags.filter(t=>p.tags.includes(t.id));}
@@ -194,8 +265,11 @@
   function validate(s,now=Date.now()) {
     if(!s||![1,2,3].includes(s.schema)||!Array.isArray(s.tasks)||!Array.isArray(s.pool)||!Array.isArray(s.tags)||!Array.isArray(s.projects)) throw Error('Неподдерживаемый формат резервной копии');
     if([...s.tasks,...s.pool,...s.tags,...s.projects].length>10000) throw Error('Слишком много записей');
+    if(s.events!==undefined&&!Array.isArray(s.events)||s.graphs!==undefined&&!Array.isArray(s.graphs))throw Error('Некорректные события или графы');
+    const events=s.events||[],graphs=s.graphs||[];
+    if(events.length+graphs.reduce((count,g)=>count+(Array.isArray(g?.nodes)?g.nodes.length:0),0)>10000)throw Error('Слишком много событий или вершин');
     const ids=new Set();
-    for(const item of [...s.tasks,...s.pool,...s.tags,...s.projects]) {
+    for(const item of [...s.tasks,...s.pool,...s.tags,...s.projects,...events]) {
       if(typeof item.id!=='string'||!/^[\w-]{1,100}$/.test(item.id)||['rotation','day-rollover'].includes(item.id)||ids.has(item.id)) throw Error('Некорректные идентификаторы'); ids.add(item.id);
     }
     for(const item of [...s.tasks,...s.pool]) if(typeof item.title!=='string'||!item.title.trim()||item.title.length>300) throw Error('Некорректное название задачи');
@@ -221,10 +295,24 @@
     if(s.tagLastSelected!==undefined&&(typeof s.tagLastSelected!=='object'||!s.tagLastSelected||Array.isArray(s.tagLastSelected)||Object.entries(s.tagLastSelected).some(([id,ts])=>!/^[\w-]{1,100}$/.test(id)||!Number.isSafeInteger(ts)||ts<0||ts>8640000000000000)))throw Error('Некорректная история ожидания тегов');
     if(s.untaggedLastSelected!==undefined&&(!Number.isSafeInteger(s.untaggedLastSelected)||s.untaggedLastSelected<0||s.untaggedLastSelected>8640000000000000))throw Error('Некорректная история ожидания просьб');
     for(const p of s.projects) if(typeof p.name!=='string'||!p.name.trim()||p.name.length>60) throw Error('Некорректный проект');
+    for(const e of events){
+      if(typeof e.title!=='string'||!e.title.trim()||e.title.length>300||typeof e.description!=='string'||e.description.length>5000||typeof e.date!=='string'||(e.date&&!validDay(e.date))||!Number.isSafeInteger(e.deadline)||e.deadline<0||e.deadline>8640000000000000||!Number.isFinite(e.remindBeforeHours)||e.remindBeforeHours<0||e.remindBeforeHours>87600||typeof e.notified!=='boolean')throw Error('Некорректное событие');
+    }
+    const projects=new Set(s.projects.map(p=>p.id)),graphProjects=new Set();
+    for(const g of graphs){
+      if(!g||typeof g.project!=='string'||!projects.has(g.project)||graphProjects.has(g.project)||!Array.isArray(g.nodes)||!Array.isArray(g.edges)||g.edges.length>20000)throw Error('Некорректный граф проекта');
+      graphProjects.add(g.project);const nodeIds=new Set();
+      for(const n of g.nodes){
+        if(!n||typeof n.id!=='string'||!/^[\w-]{1,100}$/.test(n.id)||ids.has(n.id)||nodeIds.has(n.id)||typeof n.text!=='string'||!n.text.trim()||n.text.length>120||!Array.isArray(n.taskIds)||n.taskIds.some(id=>typeof id!=='string'||!s.tasks.some(t=>t.id===id&&t.project===g.project)&&!s.pool.some(p=>p.taskBackup?.id===id&&p.taskBackup.project===g.project)))throw Error('Некорректная вершина графа');
+        nodeIds.add(n.id);ids.add(n.id);
+      }
+      const edges=new Set();for(const e of g.edges){const key=e?.from+'→'+e?.to;if(!e||!nodeIds.has(e.from)||!nodeIds.has(e.to)||e.from===e.to||edges.has(key))throw Error('Некорректное ребро графа');edges.add(key);}
+      graphLevels(g);
+    }
     if(!Number.isFinite(s.xp)||s.xp<0||s.xp>1e9||!Number.isFinite(s.intervalHours)||s.intervalHours<.25||s.intervalHours>8760||typeof s.auto!=='boolean'||!Number.isFinite(s.lastRotation)||s.lastRotation<0) throw Error('Некорректные настройки');
     if(s.overdueCheckDay!==undefined&&!validDay(s.overdueCheckDay))throw Error('Некорректная дата обработки задач');
     return migrate(s,now);
   }
-  const API={HOUR,rankNames,uid,day,validDay,addDays,initial,migrate,prepareImport,isDated,isOverdueRequest,wasOriginalRequest,taskOverdueDate,moveOverdue,returnToRequests,reconcile,todayTasks,tasksOnDate,calendarCounts,calendarCells,threshold,rank,cooldown,cooldownUntil,markSelected,availability,eligible,queuedSince,selectionStats,select,scheduleRequest,rotate,complete,validate};
+  const API={HOUR,rankNames,uid,day,validDay,addDays,initial,migrate,prepareImport,isDated,isOverdueRequest,wasOriginalRequest,taskOverdueDate,moveOverdue,returnToRequests,reconcile,todayTasks,tasksOnDate,calendarCounts,calendarCells,eventDate,eventReminderAt,eventCounts,graphFor,ensureGraph,graphLevels,addGraphNode,addGraphEdge,attachGraphTask,graphLayout,sortedProjectTasks,threshold,rank,cooldown,cooldownUntil,markSelected,availability,eligible,queuedSince,selectionStats,select,scheduleRequest,rotate,complete,validate};
   if(typeof module!=='undefined') module.exports=API; else root.Model=API;
 })(typeof window!=='undefined'?window:globalThis);

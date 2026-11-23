@@ -122,7 +122,7 @@ public class MainActivity extends Activity {
             if(request==2 && pendingBackup!=null) { try(java.io.OutputStream out=getContentResolver().openOutputStream(data.getData())) { out.write(pendingBackup.getBytes(java.nio.charset.StandardCharsets.UTF_8)); } pendingBackup=null; }
             if(request==3) { try(java.io.InputStream in=getContentResolver().openInputStream(data.getData())) {
                 java.io.ByteArrayOutputStream buffer=new java.io.ByteArrayOutputStream(); byte[] chunk=new byte[4096]; int count;
-                while((count=in.read(chunk))!=-1) { if(buffer.size()+count>2_000_000) throw new IllegalArgumentException("large backup"); buffer.write(chunk,0,count); }
+                while((count=in.read(chunk))!=-1) { if(buffer.size()+count>16_000_000) throw new IllegalArgumentException("large backup"); buffer.write(chunk,0,count); }
                 byte[] bytes=buffer.toByteArray();
                 String raw=new String(bytes,java.nio.charset.StandardCharsets.UTF_8);
                 web.evaluateJavascript("window.receiveBackup("+JSONObject.quote(raw)+")",null);

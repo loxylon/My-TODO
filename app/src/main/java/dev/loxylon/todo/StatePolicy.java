@@ -14,13 +14,15 @@ final class StatePolicy {
     }
     static boolean upgrade(JSONObject s,long now,ZoneId zone) throws JSONException {
         int schema=s.getInt("schema");if(schema<1||schema>3)throw new JSONException("Неподдерживаемая версия данных");
-        boolean legacy=schema<3||!s.has("queueClockStartedAt"),cooldownMigration=s.optInt("tagCooldownVersion")!=1;
-        if(!legacy&&!cooldownMigration)return false;
+        boolean legacy=schema<3||!s.has("queueClockStartedAt"),cooldownMigration=s.optInt("tagCooldownVersion")!=1,featureMigration=!s.has("events")||!s.has("graphs");
+        if(!legacy&&!cooldownMigration&&!featureMigration)return false;
         if(legacy){
             s.put("schema",3).put("overdueCheckDay",java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toString()).put("lastRotation",now);
             if(!s.has("queueClockStartedAt"))s.put("queueClockStartedAt",now);
         }
         normalizeCooldowns(s);
+        if(!s.has("events"))s.put("events",new JSONArray());
+        if(!s.has("graphs"))s.put("graphs",new JSONArray());
         if(cooldownMigration){
             JSONObject clock=new JSONObject();long untagged=0;
             JSONArray tags=s.getJSONArray("tags"),pool=s.getJSONArray("pool"),tasks=s.getJSONArray("tasks");

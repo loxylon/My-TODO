@@ -8,7 +8,7 @@ import java.util.*;
 final class Store {
     private static JSONObject load(Context c) throws JSONException {
         String raw = c.getSharedPreferences("todo", 0).getString("state", "");
-        return raw.isEmpty() ? new JSONObject("{\"schema\":3,\"tagCooldownVersion\":1,\"tagLastSelected\":{},\"untaggedLastSelected\":0,\"tasks\":[],\"pool\":[],\"tags\":[],\"projects\":[],\"xp\":0,\"theme\":\"sage\",\"intervalHours\":8,\"auto\":true,\"lastRotation\":0}").put("overdueCheckDay",LocalDate.now().toString()).put("queueClockStartedAt",System.currentTimeMillis()) : new JSONObject(raw);
+        return raw.isEmpty() ? new JSONObject("{\"schema\":3,\"tagCooldownVersion\":1,\"tagLastSelected\":{},\"untaggedLastSelected\":0,\"tasks\":[],\"pool\":[],\"tags\":[],\"projects\":[],\"events\":[],\"graphs\":[],\"xp\":0,\"theme\":\"sage\",\"intervalHours\":8,\"auto\":true,\"lastRotation\":0}").put("overdueCheckDay",LocalDate.now().toString()).put("queueClockStartedAt",System.currentTimeMillis()) : new JSONObject(raw);
     }
     static synchronized JSONObject read(Context c) throws JSONException {
         JSONObject s=load(c);
